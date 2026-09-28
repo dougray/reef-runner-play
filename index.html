@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reef Runner: a free pirate arcade game</title>
+<meta name="description" content="Steer your pirate ship between storm clouds and sandbars and sink the King's navy. Free, plays in your browser, installs as an app, works offline.">
+<meta name="theme-color" content="#0b3f73">
+<link rel="icon" type="image/png" sizes="32x32" href="play/assets/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="play/assets/icons/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Reef Runner">
+<meta property="og:description" content="A free cartoon pirate arcade game. Plays in your browser, installs as an app, works offline.">
+<meta property="og:image" content="https://dougray.github.io/reef-runner-play/og-card.jpg">
+<meta property="og:url" content="https://dougray.github.io/reef-runner-play/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --ink:      #1c1512;
+    --deep:     #0b3f73;
+    --sea:      #1478b8;
+    --lagoon:   #2fc3e0;
+    --sky:      #2e8fe6;
+    --gold:     #ffd34e;
+    --parch:    #f5e2b5;
+    --parch-2:  #ead09a;
+    --coral:    #d63a2f;
+    --display: "Arial Rounded MT Bold", "Trebuchet MS", "Verdana", system-ui, sans-serif;
+    --body: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--deep);
+    color: var(--parch);
+    font: 1.075rem/1.65 var(--body);
+  }
+  a { color: var(--gold); }
+  a:focus-visible, .btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+  .wrap { width: min(100% - 2rem, 62rem); margin-inline: auto; }
+  h2, h3 { font-family: var(--display); font-weight: 900; line-height: 1.15; margin: 0; }
+  h2 { font-size: clamp(1.8rem, 1.2rem + 2.4vw, 2.6rem); }
+  h3 { font-size: 1.25rem; }
+
+  /* ---------- hero: the game's own horizon ---------- */
+  .hero {
+    position: relative;
+    text-align: center;
+    padding: 2.5rem 0 7rem;
+    background:
+      linear-gradient(to bottom, var(--sky) 0, #9fdcff 30%, var(--ink) 30%, var(--ink) calc(30% + 3px),
+                      var(--lagoon) calc(30% + 3px), var(--sea) 70%, var(--deep) 100%);
+    color: #fff;
+  }
+  .hero img {
+    width: min(78vw, 27rem); height: auto;
+    filter: drop-shadow(0 .8rem 1.2rem rgba(0, 0, 0, .35));
+    animation: bob 3s ease-in-out infinite;
+  }
+  @keyframes bob { 50% { transform: translateY(-.6rem) rotate(-1deg); } }
+  .hero p.lede {
+    font-size: clamp(1.1rem, 1rem + .6vw, 1.35rem);
+    max-width: 40ch; margin: 1rem auto 1.75rem;
+    text-shadow: 0 2px 0 rgba(28, 21, 18, .55);
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+  .btn {
+    display: inline-block;
+    font: 900 1.2rem/1 var(--display);
+    color: var(--ink); text-decoration: none;
+    padding: 1rem 1.6rem;
+    border: 3px solid var(--ink); border-radius: 14px;
+    background: var(--gold);
+    box-shadow: 0 6px 0 var(--ink);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
+  .btn.quiet { background: var(--parch); font-size: 1.05rem; }
+  .hero small { display: block; margin-top: 1.4rem; font-size: .95rem; opacity: .9; }
+  .scallop { position: absolute; left: 0; bottom: -1px; width: 100%; height: 48px; display: block; }
+
+  /* ---------- parchment: how to sail ---------- */
+  .parchment { background: var(--parch); color: var(--ink); padding: 3rem 0 4.5rem; position: relative; }
+  .parchment p { max-width: 60ch; }
+  .controls { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 1rem; }
+  .controls th, .controls td { text-align: left; padding: .8rem .75rem; vertical-align: top; }
+  .controls thead th { font-family: var(--display); font-size: 1rem; border-bottom: 3px solid var(--ink); }
+  .controls tbody th { font-family: var(--display); white-space: nowrap; }
+  .controls tbody tr + tr { border-top: 2px dashed var(--parch-2); }
+  kbd {
+    display: inline-block; min-width: 1.9em; text-align: center;
+    font: 700 .85rem/1 var(--display);
+    padding: .3em .45em; margin: .1em .1em;
+    border: 2px solid var(--ink); border-radius: 6px;
+    background: #fffaf0; box-shadow: 0 2px 0 var(--ink);
+  }
+
+  /* ---------- portholes: what's out there ---------- */
+  .foes { padding: 4rem 0 3rem; }
+  .foes > .wrap > p { max-width: 60ch; }
+  .roster { list-style: none; margin: 2.5rem 0 0; padding: 0; display: grid; gap: 2.5rem 2rem; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+  .roster li { display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.25rem; align-items: center; }
+  .porthole {
+    width: 8.5rem; height: 8.5rem; border-radius: 50%;
+    background: radial-gradient(circle at 50% 35%, var(--lagoon), var(--sea) 70%);
+    border: 6px solid #c99a2e;
+    box-shadow: 0 0 0 3px var(--ink), inset 0 0 0 3px var(--ink), 0 8px 0 rgba(0, 0, 0, .25);
+  }
+  .roster h3 { color: var(--gold); margin-bottom: .3rem; }
+  .roster p { margin: 0; font-size: 1rem; }
+
+  /* ---------- three ways to play ---------- */
+  .ways { padding: 1rem 0 4rem; }
+  .ways ul { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+  .ways li { border-left: 4px solid var(--gold); padding: .25rem 0 .25rem 1.1rem; }
+  .ways h3 { margin-bottom: .35rem; }
+  .ways p { margin: 0 0 .6rem; font-size: 1rem; }
+  .ways p:last-child { margin-bottom: 0; }
+  .ways .promise { margin-top: 3rem; font-size: 1rem; opacity: .9; max-width: 60ch; }
+
+  footer {
+    background: var(--ink); color: var(--parch);
+    padding: 2rem 0 2.5rem; font-size: .95rem;
+  }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .75rem 2rem; align-items: baseline; }
+  footer .made { font-family: var(--display); font-size: 1.05rem; margin: 0; }
+  footer p { margin: 0; }
+
+  @media (max-width: 34rem) {
+    .roster li { grid-template-columns: 6.5rem 1fr; }
+    .porthole { width: 6.5rem; height: 6.5rem; }
+    .controls thead { display: none; }
+    .controls tr { display: grid; grid-template-columns: 1fr; }
+    .controls td::before { content: attr(data-label) ": "; font-family: var(--display); font-size: .85rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero img { animation: none; }
+    .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1 style="margin:0"><img src="logo-1024.webp" width="1024" height="1088" alt="Reef Runner"></h1>
+    <p class="lede">Steer your pirate ship between storm clouds and sandbars, and sink the King's navy.</p>
+    <div class="actions">
+      <a class="btn" href="play/">Set sail</a>
+      <a class="btn quiet" href="reef-runner.html" download>Download the game</a>
+    </div>
+    <small>Free. Plays right in your browser, even offline.</small>
+  </div>
+  <svg class="scallop" viewBox="0 0 1200 48" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M0 48 V24 Q50 0 100 24 T200 24 T300 24 T400 24 T500 24 T600 24 T700 24 T800 24 T900 24 T1000 24 T1100 24 T1200 24 V48 Z" fill="#f5e2b5" stroke="#1c1512" stroke-width="3"/>
+  </svg>
+</header>
+
+<main>
+  <section class="parchment" aria-labelledby="how">
+    <div class="wrap">
+      <h2 id="how">How to sail</h2>
+      <p>Your ship always sails forward. Keep tapping to stay afloat between the clouds and the sand,
+         and fire your bow cannon at anything flying a navy flag.</p>
+      <table class="controls">
+        <thead>
+          <tr><th scope="col"></th><th scope="col">Keyboard and mouse</th><th scope="col">Phone or tablet</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Sail up</th>
+            <td data-label="Keyboard"><kbd>Space</kbd> <kbd>↑</kbd> <kbd>W</kbd> or left-click</td>
+            <td data-label="Touch">Tap the left half of the screen</td>
+          </tr>
+          <tr>
+            <th scope="row">Fire</th>
+            <td data-label="Keyboard"><kbd>F</kbd> <kbd>X</kbd> <kbd>→</kbd> or right-click</td>
+            <td data-label="Touch">Tap the right half of the screen</td>
+          </tr>
+          <tr>
+            <th scope="row">Pause</th>
+            <td data-label="Keyboard"><kbd>P</kbd> or <kbd>Esc</kbd></td>
+            <td data-label="Touch">The pause button, top left</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="foes" aria-labelledby="foes">
+    <div class="wrap">
+      <h2 id="foes">What's out there</h2>
+      <p>Cannonballs fly straight through storm clouds but bury themselves in sandbars, so a sandbar
+         is cover for you and for them.</p>
+      <ul class="roster">
+        <li>
+          <canvas class="porthole" data-draw="frigate" width="272" height="272" aria-hidden="true"></canvas>
+          <div><h3>British frigate</h3>
+            <p>Quick and nosy. It follows your height and fires one aimed shot at a time. One hit sinks it, for 5 points.</p></div>
+        </li>
+        <li>
+          <canvas class="porthole" data-draw="galleon" width="272" height="272" aria-hidden="true"></canvas>
+          <div><h3>Spanish galleon</h3>
+            <p>Slow, tubby and hard to sink. It takes three hits and fires fans of three shots. Worth 15 points.</p></div>
+        </li>
+        <li>
+          <canvas class="porthole" data-draw="boss" width="272" height="272" aria-hidden="true"></canvas>
+          <div><h3>HMS Invincible</h3>
+            <p>A three-deck man-o'-war waiting at reef 40. When its gun decks glow, find the gap in the wall of shot. Worth 100 points.</p></div>
+        </li>
+        <li>
+          <canvas class="porthole" data-draw="storm" width="272" height="272" aria-hidden="true"></canvas>
+          <div><h3>Storms</h3>
+            <p>They roll in at reef 20. Rain, lightning and gusts that shove your ship around, but every reef counts double.</p></div>
+        </li>
+        <li>
+          <canvas class="porthole" data-draw="loot" width="272" height="272" aria-hidden="true"></canvas>
+          <div><h3>Treasure and rum</h3>
+            <p>Chests are worth 10 points. A barrel of rum loads your cannon for five seconds of rapid fire.</p></div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ways" aria-labelledby="ways">
+    <div class="wrap">
+      <h2 id="ways">Three ways to play</h2>
+      <ul>
+        <li>
+          <h3>In your browser</h3>
+          <p>Choose <a href="play/">Set sail</a>. Nothing to install, and it works on phones, tablets and computers.</p>
+        </li>
+        <li>
+          <h3>As an app</h3>
+          <p>iPhone and iPad: open the game in Safari, tap Share, then Add to Home Screen.</p>
+          <p>Android, or Chrome and Edge on a computer: open the game and choose Install app from the menu.</p>
+          <p>Once installed it plays with no internet at all.</p>
+        </li>
+        <li>
+          <h3>As a single file</h3>
+          <p><a href="reef-runner.html" download>Download the game</a>: one file, about 320 KB.
+             Double-click it to play offline, or send it to a friend by AirDrop, text or email.</p>
+        </li>
+      </ul>
+      <p class="promise">No accounts, no ads and no tracking. The game runs entirely on your device, and
+         your best score never leaves it.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="made">Built by <a href="https://websmithtx.com/">Websmith</a></p>
+    <p>Code under the <a href="LICENSE">MIT License</a>. Logo and icon under
+       <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</p>
+  </div>
+</footer>
+
+<!-- The portholes are drawn by the game's own art code, so they always match the game. -->
+<script src="play/js/art.js"></script>
+<script>
+  (() => {
+    const t = 1.2;
+    // Each scene draws around the porthole's centre: [scale, draw at (0, dy)].
+    const scenes = {
+      frigate: [1.9, ctx => Art.frigate(ctx, 0, 30, t, 0, 0)],
+      galleon: [1.5, ctx => Art.galleon(ctx, 0, 42, t, 0, 0)],
+      boss:    [0.95, ctx => Art.manOWar(ctx, 0, 52, t, 0, 0.6, 0.8)],
+      storm:   [1.9, ctx => {
+        const look = Art.makeObstacle();
+        look.phase = 0;            // with t = 0 the lightning bolt is mid-flash
+        look.bolt = 0.45;
+        Art.stormCloud(ctx, -38, 0, 76, look, 0);
+      }],
+      loot:    [3, ctx => { Art.chest(ctx, -14, 10, t); Art.barrel(ctx, 19, 6, t + 1); }],
+    };
+    for (const c of document.querySelectorAll('canvas[data-draw]')) {
+      const ctx = c.getContext('2d');
+      ctx.save();
+      ctx.beginPath(); ctx.arc(c.width / 2, c.height / 2, c.width / 2, 0, Math.PI * 2); ctx.clip();
+      const [k, draw] = scenes[c.dataset.draw];
+      ctx.translate(c.width / 2, c.height / 2);
+      ctx.scale(k, k);
+      draw(ctx);
+      ctx.restore();
+    }
+  })();
+</script>
+</body>
+</html>
