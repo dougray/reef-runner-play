@@ -3,7 +3,7 @@
 window.Sfx = (() => {
   'use strict';
   const MUSIC_URL = 'assets/music/australis-frontier-remix.m4a';
-  const MUSIC_VOLUME = 0.3;
+  const MUSIC_VOLUME = 0.22;         // under the effects; was 0.3, a bit loud on phones
   let ac = null;
   let master = null;                 // everything plays through here, so mute is one switch
   let musicGain = null;
