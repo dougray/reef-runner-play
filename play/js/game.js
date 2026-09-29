@@ -1118,7 +1118,8 @@
   function frame(now) {
     acc += Math.min(0.25, (now - last) / 1000);
     last = now;
-    if (game.paused) acc = 0;
+    // ?god recordings set window.reefHold and drive time themselves with reefStep().
+    if (game.paused || (GOD && window.reefHold)) acc = 0;
     while (acc >= TICK) { update(TICK); acc -= TICK; }
     render();
     updatePad();
