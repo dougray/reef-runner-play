@@ -178,6 +178,7 @@
   }
 
   function wreck(cause) {
+    fireHeld = false;
     if (GOD) { game.hits = game.hits || {}; game.hits[cause] = (game.hits[cause] || 0) + 1; return; }
     game.state = 'dead';
     game.deadT = 0;
@@ -231,6 +232,8 @@
   }
 
   const rnd = (a, b) => a + Math.random() * (b - a);
+  // Short vibration on Android phones; iPhone browsers ignore it.
+  const buzz = ms => { try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* not allowed */ } };
 
   function smoke(x, y, n, drift = 0) {
     for (let i = 0; i < n; i++) {
@@ -262,6 +265,7 @@
     smoke(m.x, m.y, 5, 60);
     game.flashes.push({ x: m.x + 6, y: m.y, r: 12, life: 0.09 });
     game.shake = Math.max(game.shake, 3);
+    buzz(12);
     Sfx.cannon();
   }
 
@@ -495,6 +499,7 @@
     game.reload = Math.max(0, game.reload - dt);
 
     game.rapid = Math.max(0, game.rapid - dt);
+    if (fireHeld && game.reload <= 0) fire();
     // No new warships while a storm blows or the man-o'-war is out.
     if (!game.boss && !game.storm.on && game.enemies.filter(e => e.state !== 'sinking').length < maxEnemies()) {
       game.untilEnemy -= dt;
@@ -820,11 +825,12 @@
     ctx.globalAlpha = 1;
     if (game.deadT >= 0.7) {
       ctx.globalAlpha = 0.6 + Math.sin(game.t * 5) * 0.4;
-      Art.text(ctx, 'Tap to sail again', W / 2, y0 + ph + 40, 22, '#fff');
+      Art.text(ctx, isTouch() ? 'Tap SAIL to sail again' : 'Tap to sail again', W / 2, y0 + ph + 40, isTouch() ? 26 : 22, '#fff');
       ctx.globalAlpha = 1;
     }
   }
-  const TOUCH = window.matchMedia('(pointer: coarse)').matches;
+  // Phones and tablets: index.html adds .touch (and can add it late, on a first touch).
+  const isTouch = () => document.documentElement.classList.contains('touch');
 
   function drawUI() {
     if (game.state === 'menu') {
@@ -844,9 +850,13 @@
         Art.text(ctx, 'REEF RUNNER', 0, 0, 64, '#ffd34e');
         ctx.restore();
       }
-      Art.text(ctx, 'Tap, click or press Space to set sail!', MENU_X, 316, 22);
-      Art.text(ctx, TOUCH ? 'Left side: sail up  ·  Right side: FIRE!' : 'Space / click: sail up  ·  F / right-click: FIRE!',
-        MENU_X, 346, 16, '#ffd34e');
+      if (isTouch()) {
+        Art.text(ctx, 'Tap SAIL to set sail!', MENU_X, 322, 30);
+        Art.text(ctx, 'Hold FIRE to keep the cannon firing', MENU_X, 358, 20, '#ffd34e');
+      } else {
+        Art.text(ctx, 'Tap, click or press Space to set sail!', MENU_X, 316, 22);
+        Art.text(ctx, 'Space / click: sail up  ·  F / right-click: FIRE!', MENU_X, 346, 16, '#ffd34e');
+      }
       if (game.best > 0) Art.text(ctx, `Best: ${game.best}`, MENU_X, 378, 18, '#bdf0f5');
     } else if (game.state === 'playing') {
       ctx.save();
@@ -855,8 +865,9 @@
       Art.text(ctx, String(game.score), 0, 0, 52, game.scorePop > 0.5 ? '#ffe14d' : '#fff');
       ctx.restore();
       const cooldown = game.rapid > 0 ? RAPID_COOLDOWN : FIRE_COOLDOWN;
-      Art.fireButton(ctx, W - 50, H - 78, 30, 1 - game.reload / cooldown, game.rapid > 0 ? 'RUM!' : TOUCH ? 'FIRE' : 'F');
-      if (game.rapid > 0) {
+      // Phones get real on-screen buttons instead (see updatePad).
+      if (!isTouch()) Art.fireButton(ctx, W - 50, H - 78, 30, 1 - game.reload / cooldown, game.rapid > 0 ? 'RUM!' : 'F');
+      if (game.rapid > 0 && !isTouch()) {
         ctx.strokeStyle = '#ff5a3a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.arc(W - 50, H - 78, 36, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (game.rapid / RAPID_TIME));
@@ -876,17 +887,17 @@
         ctx.restore();
         ctx.globalAlpha = 1;
       }
-      Art.pauseButton(ctx, PAUSE_BTN.x, PAUSE_BTN.y, PAUSE_BTN.r, game.paused);
+      if (!isTouch()) Art.pauseButton(ctx, PAUSE_BTN.x, PAUSE_BTN.y, PAUSE_BTN.r, game.paused);
       if (game.paused) {
         ctx.fillStyle = 'rgba(10,30,45,0.45)';
         ctx.fillRect(0, 0, W, H);
         Art.text(ctx, 'PAUSED', W / 2, H / 2 - 20, 56, '#ffd34e');
-        Art.text(ctx, TOUCH ? 'Tap to keep sailing' : 'Press P or click to keep sailing', W / 2, H / 2 + 30, 20);
+        Art.text(ctx, isTouch() ? 'Tap anywhere to keep sailing' : 'Press P or click to keep sailing', W / 2, H / 2 + 34, isTouch() ? 28 : 20);
       }
     } else {
       drawGameOver();
     }
-    Art.text(ctx, Sfx.muted ? '🔇 M' : '🔊 M', W - 14, H - 14, 13, '#fff', 'right');
+    if (!isTouch()) Art.text(ctx, Sfx.muted ? '🔇 M' : '🔊 M', W - 14, H - 14, 13, '#fff', 'right');
   }
 
   function render() {
@@ -952,6 +963,11 @@
 
   // ---------- plumbing ----------
 
+  // Reads the notch / home-bar insets that CSS exposes as env(safe-area-inset-*).
+  const insetProbe = document.createElement('div');
+  insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)';
+  document.body.appendChild(insetProbe);
+
   function resize() {
     const cw = window.innerWidth, ch = window.innerHeight;
     view.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -959,9 +975,15 @@
     canvas.height = Math.round(ch * view.dpr);
     canvas.style.width = cw + 'px';
     canvas.style.height = ch + 'px';
-    view.scale = Math.min(cw / W, ch / H);
+    // Portrait phone: the sea sits above the SAIL / FIRE deck, clear of the notch.
+    let top = 0, room = ch;
+    if (isTouch() && ch > cw) {
+      top = parseFloat(getComputedStyle(insetProbe).paddingTop) || 0;
+      room = ch - top - pad.getBoundingClientRect().height;
+    }
+    view.scale = Math.min(cw / W, room / H);
     view.ox = (cw - W * view.scale) / 2;
-    view.oy = (ch - H * view.scale) / 2;
+    view.oy = top + (room - H * view.scale) / 2;
   }
 
   function setPaused(on) {
@@ -984,19 +1006,67 @@
     if (e.code === 'KeyF' || e.code === 'KeyX' || e.code === 'ArrowRight' || e.code === 'Enter') { e.preventDefault(); fire(); }
     if (e.code === 'KeyM') Sfx.toggleMute();
   });
-  // Mouse: left button sails up, right button fires. Touch: left half sails up, right half fires.
+  // Mouse: left button sails up, right button fires. Touch: a tap anywhere on the sea
+  // sails up; firing has its own button.
   window.addEventListener('pointerdown', e => {
     e.preventDefault();
     if (game.paused) { setPaused(false); return; }
     const p = toStage(e);
-    if (game.state === 'playing' && (p.x - PAUSE_BTN.x) ** 2 + (p.y - PAUSE_BTN.y) ** 2 < (PAUSE_BTN.r + 8) ** 2) {
+    if (!isTouch() && game.state === 'playing' && (p.x - PAUSE_BTN.x) ** 2 + (p.y - PAUSE_BTN.y) ** 2 < (PAUSE_BTN.r + 8) ** 2) {
       setPaused(true);
       return;
     }
-    const fireZone = e.pointerType === 'mouse' ? e.button === 2 : e.clientX > window.innerWidth / 2;
-    if (fireZone && game.state === 'playing') fire();
+    if (e.pointerType === 'mouse' && e.button === 2 && game.state === 'playing') fire();
     else flap();
   });
+
+  // ---------- phone controls: on-screen SAIL, FIRE, pause and mute ----------
+
+  const pad = document.getElementById('pad');
+  const sailBtn = document.getElementById('btn-sail');
+  const fireBtn = document.getElementById('btn-fire');
+  const fireLabel = fireBtn.querySelector('.label');
+  const pauseBtn = document.getElementById('btn-pause');
+  const muteBtn = document.getElementById('btn-mute');
+  let fireHeld = false;                     // holding FIRE keeps shooting as the cannon reloads
+
+  function button(el, press, release) {
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();                  // don't also count as a tap on the sea
+      try { el.setPointerCapture(e.pointerId); } catch { /* keep going without capture */ }
+      el.classList.add('down');
+      if (game.paused && el !== pauseBtn) { setPaused(false); return; }
+      press();
+    });
+    const up = () => { el.classList.remove('down'); if (release) release(); };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  button(sailBtn, () => { flap(); buzz(8); });
+  // FIRE also starts a run from the title and game-over screens.
+  button(fireBtn, () => { if (game.state === 'playing') { fireHeld = true; fire(); } else flap(); },
+    () => { fireHeld = false; });
+  button(pauseBtn, () => setPaused(!game.paused));
+  button(muteBtn, () => { Sfx.unlock(); Sfx.toggleMute(); });
+
+  // Keeps the DOM buttons in step with the game: reload ring, rum, pause and mute icons.
+  const padState = {};
+  function updatePad() {
+    if (!isTouch()) return;
+    const set = (key, value, apply) => { if (padState[key] !== value) { padState[key] = value; apply(value); } };
+    const cooldown = game.rapid > 0 ? RAPID_COOLDOWN : FIRE_COOLDOWN;
+    const ready = game.state === 'playing' ? Math.max(0, Math.min(1, 1 - game.reload / cooldown)) : 1;
+    set('ready', ready.toFixed(2), v => fireBtn.style.setProperty('--ready', v));
+    set('loaded', ready >= 1, v => fireBtn.classList.toggle('ready', v));
+    set('rum', game.rapid > 0, v => { fireBtn.classList.toggle('rum', v); fireLabel.textContent = v ? 'RUM!' : 'FIRE'; });
+    set('playing', game.state === 'playing', v => { pauseBtn.hidden = !v; });
+    set('paused', game.paused, v => { pauseBtn.textContent = v ? '▶' : '❚❚'; pauseBtn.setAttribute('aria-label', v ? 'Resume' : 'Pause'); });
+    set('muted', Sfx.muted, v => { muteBtn.textContent = v ? '🔇' : '🔊'; muteBtn.setAttribute('aria-label', v ? 'Unmute sound' : 'Mute sound'); });
+  }
   window.addEventListener('contextmenu', e => e.preventDefault());
 
   // Fixed timestep so physics feel the same at 60 Hz and 120 Hz.
@@ -1008,13 +1078,14 @@
     if (game.paused) acc = 0;
     while (acc >= TICK) { update(TICK); acc -= TICK; }
     render();
+    updatePad();
     requestAnimationFrame(frame);
   }
 
   if (GOD) {
     window.reef = game;
     // Advance the simulation by `secs` and draw, even when the tab is hidden.
-    window.reefStep = secs => { for (let i = 0; i < secs / TICK; i++) update(TICK); render(); };
+    window.reefStep = secs => { for (let i = 0; i < secs / TICK; i++) update(TICK); render(); updatePad(); };
   }
   resize();
   requestAnimationFrame(frame);
