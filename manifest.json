@@ -1,0 +1,32 @@
+{
+  "name": "Reef Runner",
+  "short_name": "Reef Runner",
+  "description": "Steer your pirate ship between storm clouds and sandbars and sink the King's navy. Runs entirely on your device.",
+  "id": "./play/",
+  "start_url": "./play/",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0d3b4f",
+  "theme_color": "#137a9a",
+  "icons": [
+    {
+      "src": "play/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "play/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "play/assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
