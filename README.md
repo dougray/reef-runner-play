@@ -1,6 +1,6 @@
 # Reef Runner
 
-**Play:** https://dougray.github.io/reef-runner-play/
+**Play:** https://reefrunner.us/
 
 A free cartoon pirate arcade game. Steer between storm clouds and sandbars, sink British
 frigates and Spanish galleons, and take on HMS Invincible. It runs entirely on your device:

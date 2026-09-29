@@ -670,6 +670,8 @@
     game.flashes = game.flashes.filter(f => f.life > 0);
     game.scorePop = Math.max(0, game.scorePop - dt * 4);
     if (game.banner) { game.banner.life -= dt; if (game.banner.life <= 0) game.banner = null; }
+    const tempo = game.boss && game.boss.state !== 'sinking' ? 1.08 : game.storm.on ? 1.04 : 1;
+    if (tempo !== game.tempo) { game.tempo = tempo; Sfx.tempo(tempo); }
 
     if (game.state === 'menu') {
       s.y = menuShipY() + Math.sin(game.t * 2.5) * 10;
@@ -1028,6 +1030,8 @@
   function setPaused(on) {
     if (game.state !== 'playing' || game.paused === on) return;
     game.paused = on;
+    if (!on) Sfx.unlock();          // phones may have suspended audio while we were away
+    Sfx.duck(on);
     Sfx.pause();
   }
 

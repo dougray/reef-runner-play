@@ -71,29 +71,20 @@
   }
   #btn-fire:not(.ready) .ball { opacity: .45; }
 
-  /* Portrait: the empty half of the screen becomes a ship's-deck controller. */
+  /* Portrait: the same round buttons as landscape, on a slim wooden deck below the sea. */
   @media (orientation: portrait) {
     #pad {
-      height: calc(min(30vh, 250px) + env(safe-area-inset-bottom));
-      align-items: stretch; gap: 16px; padding-top: 20px; pointer-events: auto;
+      height: calc(124px + env(safe-area-inset-bottom));
+      align-items: center; padding-top: 0; pointer-events: auto;
       background:
-        repeating-linear-gradient(to bottom, #8a5a30 0 34px, #6e4522 34px 37px),
+        repeating-linear-gradient(to bottom, #8a5a30 0 30px, #6e4522 30px 33px),
         #8a5a30;
       border-top: 5px solid #1c1512;
       box-shadow: inset 0 6px 0 rgba(255, 255, 255, .12);
     }
-    #pad .pbtn { flex: 1; width: auto; height: auto; border-radius: 28px; font-size: 24px; }
     #btn-sail { background: #f5e2b5; }
     #btn-fire { background: #ffd34e; }
     #btn-fire.rum { background: #ff6e46; }
-    .glyph { font-size: 36px; }
-    .ball { width: 32px; height: 32px; }
-    /* Tall buttons: the reload ring becomes a bar along the bottom. */
-    #btn-fire::before {
-      inset: auto 18px 16px; height: 9px; border-radius: 5px;
-      background: linear-gradient(to right, #1c1512 calc(var(--ready, 1) * 100%), rgba(28, 21, 18, .18) 0);
-      -webkit-mask: none; mask: none; opacity: .7;
-    }
   }
 
   .corner {

@@ -1,17 +1,60 @@
-// Goofy sound effects synthesized with Web Audio, so there are no audio files to ship.
+// Sound: goofy effects synthesized with Web Audio (no files), plus one looping music track,
+// "Australis Frontier [REMIX]" by celestialghost8 (CC0, opengameart.org/content/cc0-scraps).
 window.Sfx = (() => {
   'use strict';
+  const MUSIC_URL = 'assets/music/australis-frontier-remix.m4a';
+  const MUSIC_VOLUME = 0.3;
   let ac = null;
+  let master = null;                 // everything plays through here, so mute is one switch
+  let musicGain = null;
+  let musicBuf = null, musicSrc = null, musicWanted = false, loop = null, rate = 1;
   let muted = false;
+  try { muted = localStorage.getItem('reefrunner.muted') === '1'; } catch { /* private mode */ }
 
   function audio() {
     if (!ac) {
       const A = window.AudioContext || window.webkitAudioContext;
       if (!A) return null;
       ac = new A();
+      master = ac.createGain();
+      master.gain.value = muted ? 0 : 1;
+      master.connect(ac.destination);
+      musicGain = ac.createGain();
+      musicGain.gain.value = MUSIC_VOLUME;
+      musicGain.connect(master);
+      loadMusic();
     }
     if (ac.state === 'suspended') ac.resume();
     return ac;
+  }
+
+  function loadMusic() {
+    fetch(MUSIC_URL)
+      .then(r => r.arrayBuffer())
+      .then(bytes => new Promise((ok, fail) => ac.decodeAudioData(bytes, ok, fail)))
+      .then(buf => { musicBuf = buf; loop = loopPoints(buf); if (musicWanted) playMusic(); })
+      .catch(() => { /* no music (e.g. index.html opened as a file); effects still work */ });
+  }
+
+  // The track fades out at the end: loop between the first and last audible samples so
+  // the restart has no dead air.
+  function loopPoints(buf) {
+    const d = buf.getChannelData(0);
+    let a = 0, b = d.length - 1;
+    while (a < b && Math.abs(d[a]) < 0.004) a++;
+    while (b > a && Math.abs(d[b]) < 0.004) b--;
+    return [a / buf.sampleRate, (b + 1) / buf.sampleRate];
+  }
+
+  function playMusic() {
+    if (!musicBuf || musicSrc) return;
+    musicSrc = ac.createBufferSource();
+    musicSrc.buffer = musicBuf;
+    musicSrc.loop = true;
+    musicSrc.playbackRate.value = rate;
+    [musicSrc.loopStart, musicSrc.loopEnd] = loop;
+    musicSrc.connect(musicGain);
+    musicSrc.start(0, loop[0]);
   }
 
   function tone(f1, f2, dur, type, vol, delay = 0) {
@@ -25,7 +68,7 @@ window.Sfx = (() => {
     o.frequency.exponentialRampToValueAtTime(f2, t + dur);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g).connect(a.destination);
+    o.connect(g).connect(master);
     o.start(t);
     o.stop(t + dur);
   }
@@ -43,14 +86,25 @@ window.Sfx = (() => {
     lp.type = 'lowpass';
     lp.frequency.value = cutoff;
     g.gain.value = vol;
-    src.connect(lp).connect(g).connect(a.destination);
+    src.connect(lp).connect(g).connect(master);
     src.start(a.currentTime + delay);
   }
 
   return {
-    unlock: audio,
-    toggleMute() { muted = !muted; return muted; },
+    // Called on every tap/key: wakes audio (browsers need a gesture) and starts the music.
+    unlock() { if (audio()) { musicWanted = true; playMusic(); } },
+    toggleMute() {
+      muted = !muted;
+      if (master) master.gain.setTargetAtTime(muted ? 0 : 1, ac.currentTime, 0.02);
+      try { localStorage.setItem('reefrunner.muted', muted ? '1' : '0'); } catch { /* private mode */ }
+      return muted;
+    },
     get muted() { return muted; },
+    get musicPlaying() { return !!musicSrc; },   // for tests
+    // Music fades right down while the game is paused.
+    duck(on) { if (musicGain) musicGain.gain.setTargetAtTime(on ? 0.04 : MUSIC_VOLUME, ac.currentTime, 0.15); },
+    // Storms and the man-o'-war push the tempo up a little.
+    tempo(r) { rate = r; if (musicSrc) musicSrc.playbackRate.setTargetAtTime(r, ac.currentTime, 0.5); },
     flap() { tone(280, 520, 0.12, 'triangle', 0.14); noise(0.08, 0.08, 2500); },
     point() { tone(880, 880, 0.07, 'square', 0.05); tone(1320, 1320, 0.1, 'square', 0.05, 0.07); },
     cannon() { noise(0.35, 0.5, 700); tone(120, 40, 0.3, 'sine', 0.35); },
