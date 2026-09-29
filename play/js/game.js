@@ -3,16 +3,23 @@
 (() => {
   'use strict';
 
-  // World is a fixed 800x450 stage, letterboxed to fit any screen.
-  const W = 800, H = 450;
+  // The sea reshapes to fit the screen, like a responsive web page (see setWorld):
+  // landscape is 450 units tall and 800-1000 wide, portrait is 480 wide and as tall as
+  // the space allows. Everything that depends on the size of the sea reads these.
+  let W = 800, H = 450;
+  let FLOOR = H - 28;            // sandy sea floor; touching it wrecks the ship
+  let SHIP_X = 180;
+  let PORTRAIT = false;
+  // Share of the landscape sea that lies ahead of the ship (1 in landscape, ~0.6 in
+  // portrait). Things that cross the screen slow down with it, so there's the same
+  // time to react on a narrow screen.
+  let REACH = 1;
   const HORIZON = 95;
-  const FLOOR = H - 28;          // sandy sea floor; touching it wrecks the ship
   const CEILING = 22;
 
   const GRAVITY = 1500;          // px/s²
   const FLAP_VY = -470;          // px/s
   const MAX_FALL = 680;
-  const SHIP_X = 180;
   const SHIP_SCALE = 0.85;
   // Hitbox circles in unscaled ship space, a bit smaller than the art to be forgiving.
   const SHIP_HITS = [
@@ -25,31 +32,45 @@
   const FIRE_COOLDOWN = 0.6;
   const BALL_SPEED = 560;
 
-  // Enemy ship types. `station` is the x it holds; `box` is its hit area around the
+  // Enemy ship types. `at` is where it holds station, as a share of the sea ahead of the
+  // ship; `box` is its hit area around the
   // waterline; `stay` is seconds before it gives up and sails off; `spread` fans a volley.
   const ENEMIES = {
     frigate: {
-      hp: 1, points: 5, station: 640, track: 70, stay: 9, fire: [1.5, 2.3], spread: [0],
+      hp: 1, points: 5, at: 0.74, half: 58, track: 70, stay: 9, fire: [1.5, 2.3], spread: [0],
       muzzle: [-54, -12], box: { w: 50, top: 76, bottom: 20 }, sinkTime: 1.6,
       splinters: ['#243a6b', '#f2c230', '#fbf7ee', '#5a3a1f'],
     },
     galleon: {
-      hp: 3, points: 15, station: 680, track: 42, stay: 13, fire: [2.6, 3.2], spread: [-85, 0, 85],
+      hp: 3, points: 15, at: 0.81, half: 74, track: 42, stay: 13, fire: [2.6, 3.2], spread: [-85, 0, 85],
       muzzle: [-58, -8], box: { w: 62, top: 100, bottom: 24 }, sinkTime: 2.2,
       splinters: ['#b8322a', '#e8b23a', '#fbf7ee', '#7a4a24'],
     },
   };
 
   const REEF_W = 76;
-  const REEF_SPACING = 300;
+  let REEF_SPACING = 300;
 
   // Events: a storm rolls in for STORM_LEN reefs from reef 20, and a man-o'-war blocks
   // the way at reef 40; both come round again every EVENT_CYCLE reefs.
   const STORM_AT = 20, STORM_LEN = 10, BOSS_AT = 40, EVENT_CYCLE = 50;
-  const BOSS = { station: 640, track: 38, muzzle: [-90, -17], box: { w: 90, top: 132, bottom: 34 }, points: 100 };
+  const BOSS = { at: 0.74, half: 112, track: 38, muzzle: [-90, -17], box: { w: 90, top: 132, bottom: 34 }, points: 100 };
   const CHEST_POINTS = 10;
   const RAPID_TIME = 5, RAPID_COOLDOWN = 0.18;
-  const PICKUP_DX = REEF_W + (REEF_SPACING - REEF_W) / 2;   // floats midway between two reefs
+  let PICKUP_DX = REEF_W + (REEF_SPACING - REEF_W) / 2;   // floats midway between two reefs
+
+  function setWorld(w, h, portrait) {
+    W = w; H = h; PORTRAIT = portrait;
+    FLOOR = H - 28;
+    SHIP_X = portrait ? 100 : 180;
+    REACH = Math.min(1, (W - SHIP_X) / 620);
+    REEF_SPACING = portrait ? 250 : 300;
+    PICKUP_DX = REEF_W + (REEF_SPACING - REEF_W) / 2;
+  }
+  // Where a warship holds station; `half` (half its hull length) keeps it fully on screen.
+  const stationX = T => Math.min(SHIP_X + (W - SHIP_X) * T.at, W - T.half);
+  const startY = () => H * 0.45;
+  const menuShipY = () => H * (PORTRAIT ? 0.72 : 0.45);   // below the logo and text in portrait
   const TICK = 1 / 120;
   // Play-testing aid: ?god makes the ship invincible and exposes window.reef / window.reefStep.
   const GOD = /[?&]god\b/.test(location.search);
@@ -68,7 +89,7 @@
     scroll: 0,
     score: 0,
     best: loadBest(),
-    ship: { y: H * 0.45, vy: 0, tilt: 0, stretch: 0 },
+    ship: { y: 0, vy: 0, tilt: 0, stretch: 0 },
     reefs: [],
     balls: [],                   // player cannonballs
     shots: [],                   // enemy cannonballs
@@ -95,7 +116,7 @@
     untilEnemy: 0,
     passed: 0,                   // reefs passed; drives difficulty
     reload: 0,
-    lastGapY: H * 0.45,
+    lastGapY: 0,
     deadT: 0,
     shake: 0,
     freeze: 0,                   // hit-stop after a sinking
@@ -119,10 +140,10 @@
 
   // Difficulty climbs with reefs passed rather than score, so sinking ships
   // earns points without also speeding up the sea.
-  const speed = () => Math.min(290, 170 + game.passed * 3);
+  const speed = () => Math.min(290, 170 + game.passed * 3) * (PORTRAIT ? 0.9 : 1);
   const gapSize = () => Math.max(135, 190 - game.passed * 2);
-  const enemyShotSpeed = () => Math.min(410, 330 + game.passed * 2);
-  const maxEnemies = () => (game.passed >= 25 ? 2 : 1);
+  const enemyShotSpeed = () => Math.min(410, 330 + game.passed * 2) * Math.max(0.6, REACH);
+  const maxEnemies = () => (game.passed >= 25 && !PORTRAIT ? 2 : 1);   // no room for two in portrait
   const enemyInterval = () => rnd(5, 9) - Math.min(3, game.passed * 0.06);
   const galleonChance = () => (game.passed < 12 ? 0 : Math.min(0.5, 0.25 + (game.passed - 12) * 0.02));
 
@@ -130,7 +151,7 @@
 
   function reset() {
     const s = game.ship;
-    s.y = H * 0.45; s.vy = 0; s.tilt = 0; s.stretch = 0;
+    s.y = startY(); s.vy = 0; s.tilt = 0; s.stretch = 0;
     game.reefs = [];
     game.balls = [];
     game.shots = [];
@@ -152,7 +173,7 @@
     game.passed = 0;
     game.score = 0;
     game.untilReef = 120;
-    game.lastGapY = H * 0.45;
+    game.lastGapY = startY();
     game.deadT = 0;
   }
 
@@ -261,7 +282,8 @@
     game.reload = game.rapid > 0 ? RAPID_COOLDOWN : FIRE_COOLDOWN;
     const m = shipPoint(50, -18);
     const aim = Math.sin(game.ship.tilt);
-    game.balls.push({ x: m.x, y: m.y, vx: BALL_SPEED, vy: aim * BALL_SPEED * 0.4, g: 60 });
+    const bs = BALL_SPEED * Math.max(0.7, REACH);
+    game.balls.push({ x: m.x, y: m.y, vx: bs, vy: aim * bs * 0.4, g: 60 });
     smoke(m.x, m.y, 5, 60);
     game.flashes.push({ x: m.x + 6, y: m.y, r: 12, life: 0.09 });
     game.shake = Math.max(game.shake, 3);
@@ -275,11 +297,11 @@
     const kind = Math.random() < galleonChance() ? 'galleon' : 'frigate';
     const T = ENEMIES[kind];
     const other = game.enemies.find(e => e.state !== 'sinking');
-    let station = T.station;
+    let station = stationX(T);
     let fireT = 1.2;
     if (other) {
       // Share the sea: take the other slot and fire out of step with the first ship.
-      station = other.station >= 640 ? other.station - 160 : other.station + 150;
+      station = other.station >= stationX(ENEMIES.frigate) ? other.station - 160 : other.station + 150;
       fireT = Math.max(1.2, other.fireT + 1);
     }
     game.enemies.push({
@@ -414,7 +436,7 @@
     const gapY = Math.max(CEILING + 70, Math.min(FLOOR - 70, game.ship.y + rnd(-80, 80)));
     for (let y = CEILING + 12; y < FLOOR - 6; y += 30) {
       if (Math.abs(y - gapY) < 62) continue;
-      game.shots.push({ x: b.x - 70 + rnd(-6, 6), y, vx: -300, vy: 0, g: 0, r: 6 });
+      game.shots.push({ x: b.x - 70 + rnd(-6, 6), y, vx: -300 * Math.max(0.6, REACH), vy: 0, g: 0, r: 6 });
       smoke(b.x - 70, y, 1, -60);
     }
     game.shake = Math.max(game.shake, 10);
@@ -466,7 +488,7 @@
       }
       return;
     }
-    b.x += (BOSS.station - b.x) * Math.min(1, dt * 0.9);
+    b.x += (stationX(BOSS) - b.x) * Math.min(1, dt * 0.9);
     const dy = Math.max(150, Math.min(FLOOR - 40, game.ship.y + 30)) - b.y;
     b.y += Math.sign(dy) * Math.min(Math.abs(dy), BOSS.track * dt);
     if (b.state === 'enter' && b.t > 2) b.state = 'fight';
@@ -650,7 +672,7 @@
     if (game.banner) { game.banner.life -= dt; if (game.banner.life <= 0) game.banner = null; }
 
     if (game.state === 'menu') {
-      s.y = H * 0.45 + Math.sin(game.t * 2.5) * 10;
+      s.y = menuShipY() + Math.sin(game.t * 2.5) * 10;
       s.tilt = Math.sin(game.t * 2.5 + 1) * 0.08;
     } else if (game.state === 'playing') {
       s.vy = Math.min(MAX_FALL, s.vy + GRAVITY * dt);
@@ -736,7 +758,7 @@
 
     // Rows of little cartoon wave marks, farther rows scroll slower.
     ctx.lineCap = 'round';
-    for (let row = 0; row < 5; row++) {
+    for (let row = 0; HORIZON + 30 + row * 62 < FLOOR - 10; row++) {
       const y = HORIZON + 30 + row * 62;
       const k = 0.3 + row * 0.18;
       const spacing = 130;
@@ -802,12 +824,13 @@
     ctx.globalAlpha = 1;
   }
 
-  const MENU_X = 480;           // right of the bobbing ship
+  // Title screen: logo right of the bobbing ship in landscape, centred above it in portrait.
+  const menuX = () => (PORTRAIT ? W / 2 : W - 320);
   const PAUSE_BTN = { x: 34, y: 34, r: 20 };
 
   function drawGameOver() {
     const drop = Math.min(1, game.deadT / 0.35);      // scroll slides down into place
-    const y0 = 110 - (1 - drop) * 40;
+    const y0 = (PORTRAIT ? H * 0.28 : 110) - (1 - drop) * 40;
     ctx.globalAlpha = drop;
     Art.text(ctx, 'SHIPWRECKED!', W / 2, y0 - 42, 50, '#ff7a9c');
     const pw = 360, ph = 190, px = W / 2 - pw / 2;
@@ -838,26 +861,26 @@
       if (logo.complete && logo.naturalWidth) {
         const h = 270, w = h * logo.naturalWidth / logo.naturalHeight;
         ctx.save();
-        ctx.translate(MENU_X, 18 + h / 2 + Math.sin(game.t * 2.6) * 4);
+        ctx.translate(menuX(), 18 + h / 2 + Math.sin(game.t * 2.6) * 4);
         ctx.rotate(wob * 0.5);
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(logo, -w / 2, -h / 2, w, h);
         ctx.restore();
       } else {
         ctx.save();
-        ctx.translate(MENU_X, 140);
+        ctx.translate(menuX(), 140);
         ctx.rotate(wob);
         Art.text(ctx, 'REEF RUNNER', 0, 0, 64, '#ffd34e');
         ctx.restore();
       }
       if (isTouch()) {
-        Art.text(ctx, 'Tap SAIL to set sail!', MENU_X, 322, 30);
-        Art.text(ctx, 'Hold FIRE to keep the cannon firing', MENU_X, 358, 20, '#ffd34e');
+        Art.text(ctx, 'Tap SAIL to set sail!', menuX(), 322, 30);
+        Art.text(ctx, 'Hold FIRE to keep the cannon firing', menuX(), 358, 20, '#ffd34e');
       } else {
-        Art.text(ctx, 'Tap, click or press Space to set sail!', MENU_X, 316, 22);
-        Art.text(ctx, 'Space / click: sail up  ·  F / right-click: FIRE!', MENU_X, 346, 16, '#ffd34e');
+        Art.text(ctx, 'Tap, click or press Space to set sail!', menuX(), 316, 22);
+        Art.text(ctx, 'Space / click: sail up  ·  F / right-click: FIRE!', menuX(), 346, 16, '#ffd34e');
       }
-      if (game.best > 0) Art.text(ctx, `Best: ${game.best}`, MENU_X, 378, 18, '#bdf0f5');
+      if (game.best > 0) Art.text(ctx, `Best: ${game.best}`, menuX(), 378, 18, '#bdf0f5');
     } else if (game.state === 'playing') {
       ctx.save();
       ctx.translate(W / 2, 50);
@@ -880,7 +903,7 @@
         const pop = age < 0.15 ? age / 0.15 : 1;
         ctx.globalAlpha = Math.min(1, bn.life * 2);
         ctx.save();
-        ctx.translate(W / 2, 170);
+        ctx.translate(W / 2, PORTRAIT ? H * 0.3 : 170);
         ctx.scale(0.6 + pop * 0.4, 0.6 + pop * 0.4);
         Art.text(ctx, bn.title, 0, 0, 50, '#ffd34e');
         if (bn.sub) Art.text(ctx, bn.sub, 0, 42, 20);
@@ -981,9 +1004,25 @@
       top = parseFloat(getComputedStyle(insetProbe).paddingTop) || 0;
       room = ch - top - pad.getBoundingClientRect().height;
     }
+    const wasPortrait = PORTRAIT;
+    const aspect = cw / room;
+    if (aspect < 1) setWorld(480, Math.round(Math.min(960, Math.max(560, 480 / aspect))), true);
+    else setWorld(Math.round(Math.min(1000, Math.max(800, 450 * aspect))), 450, false);
+    if (PORTRAIT !== wasPortrait) settleWorld();
     view.scale = Math.min(cw / W, room / H);
     view.ox = (cw - W * view.scale) / 2;
     view.oy = top + (room - H * view.scale) / 2;
+  }
+
+  // After turning the phone mid-run: pause, keep everything inside the new sea,
+  // and send warships back to their new stations.
+  function settleWorld() {
+    const s = game.ship;
+    s.y = Math.min(s.y, FLOOR - 40);
+    game.lastGapY = Math.min(game.lastGapY, FLOOR - 120);
+    for (const e of game.enemies) if (e.state !== 'sinking') e.station = stationX(e.T);
+    game.enemies = game.enemies.filter((e, i) => i < maxEnemies() || e.state === 'sinking');
+    setPaused(true);
   }
 
   function setPaused(on) {
