@@ -14,6 +14,11 @@
 <link rel="icon" type="image/png" sizes="64x64" href="assets/icons/favicon-64.png">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
+<script>
+  // Phones and tablets get on-screen SAIL / FIRE buttons. Decided before first paint;
+  // a touch on a device that didn't report a coarse pointer switches them on later.
+  if (window.matchMedia('(pointer: coarse)').matches) document.documentElement.classList.add('touch');
+</script>
 <style>
   html, body {
     margin: 0; height: 100%; overflow: hidden;
@@ -27,7 +32,80 @@
     text-align: center; color: #bfe9ef; pointer-events: none;
     font: 600 15px "Trebuchet MS", system-ui, sans-serif;
   }
-  @media (orientation: portrait) { #rotate { display: block; } }
+  @media (orientation: portrait) { html:not(.touch) #rotate { display: block; } }
+
+  /* ---------- phone controls ---------- */
+  #pad, .corner { display: none; }
+  html.touch #pad { display: flex; }
+  html.touch .corner { display: grid; }
+  .pbtn {
+    -webkit-appearance: none; appearance: none; margin: 0;
+    touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    font: 900 18px/1 "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+    color: #1c1512; letter-spacing: .04em;
+    border: 4px solid #1c1512; box-shadow: 0 6px 0 #1c1512;
+    display: grid; place-items: center; align-content: center; gap: 6px;
+    position: relative; cursor: pointer;
+    transition: transform .06s, box-shadow .06s;
+  }
+  .pbtn.down { transform: translateY(4px); box-shadow: 0 2px 0 #1c1512; }
+  .pbtn:focus-visible { outline: 3px solid #ffd34e; outline-offset: 3px; }
+  #pad {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    justify-content: space-between; align-items: flex-end; pointer-events: none;
+    padding: 0 max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  }
+  #pad .pbtn { pointer-events: auto; width: 92px; height: 92px; border-radius: 50%; }
+  #btn-sail { background: rgba(245, 226, 181, .88); }
+  #btn-fire { background: rgba(255, 211, 78, .9); }
+  #btn-fire.rum { background: rgba(255, 110, 70, .92); }
+  .glyph { font-size: 26px; line-height: .8; }
+  .ball { width: 22px; height: 22px; border-radius: 50%; background: #26262b; box-shadow: inset -4px -4px 0 #3d3d45; border: 2px solid #1c1512; }
+  /* Reload ring: fills clockwise as the cannon reloads. */
+  #btn-fire::before {
+    content: ""; position: absolute; inset: 5px; border-radius: inherit;
+    background: conic-gradient(#1c1512 calc(var(--ready, 1) * 1turn), transparent 0);
+    -webkit-mask: radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+            mask: radial-gradient(closest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+    opacity: .55; pointer-events: none;
+  }
+  #btn-fire:not(.ready) .ball { opacity: .45; }
+
+  /* Portrait: the empty half of the screen becomes a ship's-deck controller. */
+  @media (orientation: portrait) {
+    #pad {
+      height: calc(min(30vh, 250px) + env(safe-area-inset-bottom));
+      align-items: stretch; gap: 16px; padding-top: 20px; pointer-events: auto;
+      background:
+        repeating-linear-gradient(to bottom, #8a5a30 0 34px, #6e4522 34px 37px),
+        #8a5a30;
+      border-top: 5px solid #1c1512;
+      box-shadow: inset 0 6px 0 rgba(255, 255, 255, .12);
+    }
+    #pad .pbtn { flex: 1; width: auto; height: auto; border-radius: 28px; font-size: 24px; }
+    #btn-sail { background: #f5e2b5; }
+    #btn-fire { background: #ffd34e; }
+    #btn-fire.rum { background: #ff6e46; }
+    .glyph { font-size: 36px; }
+    .ball { width: 32px; height: 32px; }
+    /* Tall buttons: the reload ring becomes a bar along the bottom. */
+    #btn-fire::before {
+      inset: auto 18px 16px; height: 9px; border-radius: 5px;
+      background: linear-gradient(to right, #1c1512 calc(var(--ready, 1) * 100%), rgba(28, 21, 18, .18) 0);
+      -webkit-mask: none; mask: none; opacity: .7;
+    }
+  }
+
+  .corner {
+    position: fixed; z-index: 6; width: 44px; height: 44px; border-radius: 50%;
+    place-items: center; font-size: 18px; line-height: 1;
+    background: rgba(28, 21, 18, .45); color: #fff; border: 2px solid rgba(255, 255, 255, .5);
+    top: max(12px, env(safe-area-inset-top));
+    -webkit-appearance: none; appearance: none; padding: 0; touch-action: none;
+  }
+  #btn-pause { left: max(12px, env(safe-area-inset-left)); }
+  #btn-mute { right: max(12px, env(safe-area-inset-right)); }
+  #btn-pause[hidden] { display: none; }
 
   #splash {
     position: fixed; inset: 0; z-index: 10;
@@ -57,6 +135,12 @@
 <canvas id="game"></canvas>
 <div id="splash"><img src="assets/logo-600.webp" alt="Reef Runner"><div class="bar"><i></i></div></div>
 <div id="rotate">Turn your phone sideways for a bigger sea ↻</div>
+<div id="pad">
+  <button class="pbtn" id="btn-sail" aria-label="Sail up"><span class="glyph" aria-hidden="true">▲</span>SAIL</button>
+  <button class="pbtn ready" id="btn-fire" aria-label="Fire"><span class="ball" aria-hidden="true"></span><span class="label">FIRE</span></button>
+</div>
+<button class="corner" id="btn-pause" aria-label="Pause" hidden>❚❚</button>
+<button class="corner" id="btn-mute" aria-label="Mute sound">🔊</button>
 <script>
   // Loading screen: shows the logo until everything has loaded (at least 1.2 s),
   // then fades. A tap or key skips it without also starting the game;
@@ -68,6 +152,14 @@
     const hide = () => { if (up) { up = false; splash.classList.add('gone'); } };
     const swallow = e => { if (up) { e.stopImmediatePropagation(); e.preventDefault(); hide(); } };
     window.addEventListener('pointerdown', swallow, true);
+    // First real touch on a device that didn't advertise touch: bring up the buttons.
+    window.addEventListener('pointerdown', e => {
+      const root = document.documentElement;
+      if (e.pointerType === 'touch' && !root.classList.contains('touch')) {
+        root.classList.add('touch');
+        window.dispatchEvent(new Event('resize'));
+      }
+    }, true);
     window.addEventListener('keydown', swallow, true);
     window.addEventListener('load', () => setTimeout(hide, Math.max(0, 1200 - (performance.now() - started))));
   })();

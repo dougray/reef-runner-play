@@ -1,6 +1,6 @@
-// Service worker TEMPLATE. tools/build.py stamps 0754d58e54 and ["./", "index.html", "manifest.json", "js/art.js", "js/sfx.js", "js/game.js", "assets/logo-600.webp", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"] into
+// Service worker TEMPLATE. tools/build.py stamps 35b33f1440 and ["./", "index.html", "manifest.json", "js/art.js", "js/sfx.js", "js/game.js", "assets/logo-600.webp", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"] into
 // dist/web/sw.js; the dev copy of the game never registers this file.
-const CACHE = 'reef-runner-0754d58e54';
+const CACHE = 'reef-runner-35b33f1440';
 const SHELL = ["./", "index.html", "manifest.json", "js/art.js", "js/sfx.js", "js/game.js", "assets/logo-600.webp", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"];
 
 self.addEventListener('install', e => {
