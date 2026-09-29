@@ -11,7 +11,33 @@ window.Sfx = (() => {
   let muted = false;
   try { muted = localStorage.getItem('reefrunner.muted') === '1'; } catch { /* private mode */ }
 
+  // iPhones: Web Audio normally obeys the ring/silent switch, so a phone on silent plays
+  // nothing (a video still would). Ask for the "playback" audio session like a video does;
+  // older iOS without navigator.audioSession gets the same effect from a silent looping
+  // <audio> element.
+  let session = false;
+  function playbackSession() {
+    if (session) return;
+    session = true;
+    try {
+      if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; }
+    } catch { /* not allowed */ }
+    try {
+      const sr = 8000, n = 800, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+      const str = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+      str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVEfmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true);
+      v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+      const el = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+      el.loop = true;
+      el.setAttribute('playsinline', '');
+      el.play().catch(() => { session = false; });   // retry on the next gesture
+    } catch { /* no fallback available */ }
+  }
+
   function audio() {
+    playbackSession();
     if (!ac) {
       const A = window.AudioContext || window.webkitAudioContext;
       if (!A) return null;
@@ -88,6 +114,14 @@ window.Sfx = (() => {
     g.gain.value = vol;
     src.connect(lp).connect(g).connect(master);
     src.start(a.currentTime + delay);
+  }
+
+  // Safari only unlocks audio on gestures that complete (touchend / pointerup / click / key),
+  // not on pointerdown, which is what the game listens to. Wake audio on those too, from
+  // the very first tap (including the one that skips the splash screen).
+  const wake = () => { if (audio()) { musicWanted = true; playMusic(); } };
+  for (const type of ['touchend', 'pointerup', 'click', 'keyup']) {
+    window.addEventListener(type, wake, { capture: true, passive: true });
   }
 
   return {
