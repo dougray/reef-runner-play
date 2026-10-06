@@ -70,7 +70,8 @@
   // Where a warship holds station; `half` (half its hull length) keeps it fully on screen.
   const stationX = T => Math.min(SHIP_X + (W - SHIP_X) * T.at, W - T.half);
   const startY = () => H * 0.45;
-  const menuShipY = () => H * (PORTRAIT ? 0.72 : 0.45);   // below the logo and text in portrait
+  // Below the logo and text in portrait; the floor keeps it clear on shorter seas (iPad).
+  const menuShipY = () => (PORTRAIT ? Math.max(H * 0.72, 445) : H * 0.45);
   const TICK = 1 / 120;
   // Play-testing aid: ?god makes the ship invincible and exposes window.reef / window.reefStep.
   const GOD = /[?&]god\b/.test(location.search);
@@ -992,6 +993,14 @@
   const insetProbe = document.createElement('div');
   insetProbe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)';
   document.body.appendChild(insetProbe);
+  const safeTop = () => parseFloat(getComputedStyle(insetProbe).paddingTop) || 0;
+  // Some web views (the iOS app's, notably) report the notch / Dynamic Island inset only
+  // after first layout, so re-check now and then and re-lay out when it changes.
+  let lastSafeTop = -1;
+  function watchInsets() {
+    const t = safeTop();
+    if (t !== lastSafeTop) { lastSafeTop = t; resize(); }
+  }
 
   function resize() {
     const cw = window.innerWidth, ch = window.innerHeight;
@@ -1003,7 +1012,7 @@
     // Portrait phone: the sea sits above the SAIL / FIRE deck, clear of the notch.
     let top = 0, room = ch;
     if (isTouch() && ch > cw) {
-      top = parseFloat(getComputedStyle(insetProbe).paddingTop) || 0;
+      top = safeTop();
       room = ch - top - pad.getBoundingClientRect().height;
     }
     const wasPortrait = PORTRAIT;
@@ -1115,6 +1124,7 @@
   // Fixed timestep so physics feel the same at 60 Hz and 120 Hz.
   let last = performance.now();
   let acc = 0;
+  let frames = 0;
   function frame(now) {
     acc += Math.min(0.25, (now - last) / 1000);
     last = now;
@@ -1123,6 +1133,7 @@
     while (acc >= TICK) { update(TICK); acc -= TICK; }
     render();
     updatePad();
+    if (++frames % 30 === 0) watchInsets();
     requestAnimationFrame(frame);
   }
 
