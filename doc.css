@@ -1,0 +1,23 @@
+/* Plain text pages (privacy, support): the landing page's parchment and ink. */
+:root { --ink: #1c1512; --deep: #0b3f73; --gold: #ffd34e; --parch: #f5e2b5; --parch-2: #ead09a;
+  --display: "Arial Rounded MT Bold", "Trebuchet MS", "Verdana", system-ui, sans-serif;
+  --body: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--deep); color: var(--ink); font: 1.06rem/1.7 var(--body); }
+header { padding: 1.25rem 0; }
+header a { display: inline-flex; align-items: center; gap: .6rem; color: var(--parch); text-decoration: none;
+  font: 900 1.2rem/1 var(--display); }
+header img { width: 44px; height: 44px; }
+.wrap { width: min(100% - 2rem, 44rem); margin-inline: auto; }
+main { background: var(--parch); border: 3px solid var(--ink); border-radius: 16px; padding: 2rem clamp(1.25rem, 4vw, 2.5rem);
+  box-shadow: 0 8px 0 rgba(0, 0, 0, .25); margin-bottom: 2.5rem; }
+h1, h2 { font-family: var(--display); font-weight: 900; line-height: 1.15; }
+h1 { font-size: clamp(1.8rem, 1.3rem + 2vw, 2.4rem); margin: 0 0 .25rem; }
+h2 { font-size: 1.2rem; margin: 2rem 0 .4rem; }
+.updated { margin: 0 0 1.5rem; color: #6b4a22; font-size: .95rem; }
+a { color: #8a3b12; }
+a:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+ul { padding-left: 1.2rem; }
+footer { color: var(--parch); font-size: .95rem; padding-bottom: 2.5rem; }
+footer a { color: var(--gold); }

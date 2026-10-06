@@ -139,7 +139,7 @@
   (() => {
     const splash = document.getElementById('splash');
     const started = performance.now();
-    let up = true;
+    let up = !!splash;              // the native apps drop it: they have their own launch screen
     const hide = () => { if (up) { up = false; splash.classList.add('gone'); } };
     const swallow = e => { if (up) { e.stopImmediatePropagation(); e.preventDefault(); hide(); } };
     window.addEventListener('pointerdown', swallow, true);
