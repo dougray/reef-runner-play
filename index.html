@@ -67,9 +67,13 @@
     animation: bob 3s ease-in-out infinite;
   }
   @keyframes bob { 50% { transform: translateY(-.6rem) rotate(-1deg); } }
+  /* The lede lands on the bright lagoon band, so it sits on a soft ink scrim:
+     white on it is at least 5.3:1 even over the lightest lagoon (bare lagoon was about 3.2-3.7:1). */
   .hero p.lede {
     font-size: clamp(1.1rem, 1rem + .6vw, 1.35rem);
-    max-width: 40ch; margin: 1rem auto 1.75rem;
+    width: fit-content; max-width: 40ch; margin: 1rem auto 1.75rem;
+    padding: .45em 1em; border-radius: 14px;
+    background: rgba(28, 21, 18, .45);
     text-shadow: 0 2px 0 rgba(28, 21, 18, .55);
   }
   .actions { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
