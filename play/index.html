@@ -94,6 +94,10 @@
     top: max(12px, env(safe-area-inset-top));
     -webkit-appearance: none; appearance: none; padding: 0; touch-action: none;
   }
+  .corner svg { display: block; }
+  /* 44px disc, 48px touch target (Android's 48dp minimum): the ring of hit-slop is invisible. */
+  .corner::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+  .corner:focus-visible { outline: 3px solid #ffd34e; outline-offset: 3px; }
   #btn-pause { left: max(12px, env(safe-area-inset-left)); }
   #btn-mute { right: max(12px, env(safe-area-inset-right)); }
   #btn-pause[hidden] { display: none; }
@@ -120,18 +124,30 @@
   }
   @keyframes bob { 50% { transform: translateY(-1.5vmin) rotate(-1deg); } }
   @keyframes fill { to { width: 100%; } }
+  @media (prefers-reduced-motion: reduce) {
+    #splash img { animation: none; }
+    .pbtn { transition: none; }
+  }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="game" role="img" aria-label="Reef Runner, a pirate arcade game" aria-describedby="game-help"></canvas>
+<p id="game-help" class="sr-only">Steer your pirate ship between storm clouds and sandbars and sink enemy warships.
+  Sail up with Space, Up arrow, W or a tap on the sea. Fire with F, X, Right arrow or Enter, or the Fire button.
+  P or Escape pauses, M mutes. Game events and your score at the end of each run are announced.</p>
+<div id="status" class="sr-only" role="status" aria-live="polite"></div>
 <div id="splash"><img src="assets/logo-600.webp" alt="Reef Runner"><div class="bar"><i></i></div></div>
 <div id="rotate">Turn your phone sideways for a bigger sea ↻</div>
 <div id="pad">
   <button class="pbtn" id="btn-sail" aria-label="Sail up"><span class="glyph" aria-hidden="true">▲</span>SAIL</button>
   <button class="pbtn ready" id="btn-fire" aria-label="Fire"><span class="ball" aria-hidden="true"></span><span class="label">FIRE</span></button>
 </div>
-<button class="corner" id="btn-pause" aria-label="Pause" hidden>❚❚</button>
-<button class="corner" id="btn-mute" aria-label="Mute sound">🔊</button>
+<button class="corner" id="btn-pause" aria-label="Pause" hidden></button>
+<button class="corner" id="btn-mute" aria-label="Mute sound"></button>
 <script>
   // Loading screen: shows the logo until everything has loaded (at least 1.2 s),
   // then fades. A tap or key skips it without also starting the game;

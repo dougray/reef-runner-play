@@ -17,6 +17,27 @@
   const HORIZON = 95;
   const CEILING = 22;
 
+  // Reduce Motion (iOS) / Remove animations (Android) / the OS setting on desktop all arrive as
+  // prefers-reduced-motion. When on: no camera shake and no full-screen lightning wash.
+  const motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  let calm = !!(motionQuery && motionQuery.matches);
+  if (motionQuery) {
+    const onMotion = e => { calm = e.matches; };
+    if (motionQuery.addEventListener) motionQuery.addEventListener('change', onMotion);
+    else if (motionQuery.addListener) motionQuery.addListener(onMotion);
+  }
+
+  // Screen readers: the canvas is labelled in index.html; state changes (not every point) are
+  // spoken through a polite live region.
+  const statusEl = document.getElementById('status');
+  let sayTimer = 0;
+  function say(msg) {
+    if (!statusEl) return;
+    clearTimeout(sayTimer);
+    statusEl.textContent = '';               // clear first so a repeated message is spoken again
+    sayTimer = setTimeout(() => { statusEl.textContent = msg; }, 60);
+  }
+
   const GRAVITY = 1500;          // px/s²
   const FLAP_VY = -470;          // px/s
   const MAX_FALL = 680;
@@ -183,10 +204,12 @@
     if (game.state === 'menu') {
       reset();
       game.state = 'playing';
+      say('Set sail!');
     } else if (game.state === 'dead') {
       if (game.deadT < 0.7) return;   // don't let a panicked tap skip the game-over screen
       reset();
       game.state = 'playing';
+      say('Set sail!');
     }
     const s = game.ship;
     s.vy = FLAP_VY;
@@ -226,6 +249,7 @@
         }
       }, 450);
     }
+    say(`Shipwrecked! Score ${game.score}. ${game.newBest ? 'New best!' : `Best ${game.best}.`} Sail up to try again.`);
   }
 
   function spawnReef() {
@@ -363,6 +387,8 @@
 
   function announce(title, sub) {
     game.banner = { title, sub, life: 2.6, max: 2.6 };
+    const t = title.charAt(0) + title.slice(1).toLowerCase();   // "STORM!" reads better as "Storm!"
+    say(sub ? `${t} ${sub.replace(/\s*·\s*/g, ', ')}.` : t);
   }
 
   function onReefPassed() {
@@ -813,8 +839,9 @@
     }
     ctx.stroke();
     if (st.flash > 0) {
-      ctx.fillStyle = `rgba(255,255,255,${st.flash * 0.55})`;
-      ctx.fillRect(0, 0, W, H);
+      // Reduced motion: a soft glow in the sky instead of a full-screen white flash.
+      ctx.fillStyle = `rgba(255,255,255,${st.flash * (calm ? 0.18 : 0.55)})`;
+      if (calm) ctx.fillRect(0, 0, W, HORIZON); else ctx.fillRect(0, 0, W, H);
     }
   }
 
@@ -932,8 +959,9 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const k = view.scale * view.dpr;
-    const sx = game.shake ? (Math.random() - 0.5) * game.shake : 0;
-    const sy = game.shake ? (Math.random() - 0.5) * game.shake : 0;
+    const shake = calm ? 0 : game.shake;   // hit-stop and KABOOM still carry the hit without moving the camera
+    const sx = shake ? (Math.random() - 0.5) * shake : 0;
+    const sy = shake ? (Math.random() - 0.5) * shake : 0;
     ctx.setTransform(k, 0, 0, k, view.ox * view.dpr, view.oy * view.dpr);
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
@@ -1023,6 +1051,7 @@
     view.scale = Math.min(cw / W, room / H);
     view.ox = (cw - W * view.scale) / 2;
     view.oy = top + (room - H * view.scale) / 2;
+    redraw = true;                  // resizing cleared the canvas
   }
 
   // After turning the phone mid-run: pause, keep everything inside the new sea,
@@ -1039,6 +1068,8 @@
   function setPaused(on) {
     if (game.state !== 'playing' || game.paused === on) return;
     game.paused = on;
+    redraw = true;
+    say(on ? 'Paused. Press P or tap to resume.' : 'Resumed.');
     if (!on) Sfx.unlock();          // phones may have suspended audio while we were away
     Sfx.duck(on);
     Sfx.pause();
@@ -1053,10 +1084,10 @@
   window.addEventListener('keydown', e => {
     if (e.repeat) return;
     if (e.code === 'KeyP' || e.code === 'Escape') { setPaused(!game.paused); return; }
+    if (e.code === 'KeyM') { Sfx.toggleMute(); return; }   // mutes without un-pausing
     if (game.paused) { e.preventDefault(); setPaused(false); return; }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); flap(); }
     if (e.code === 'KeyF' || e.code === 'KeyX' || e.code === 'ArrowRight' || e.code === 'Enter') { e.preventDefault(); fire(); }
-    if (e.code === 'KeyM') Sfx.toggleMute();
   });
   // Mouse: left button sails up, right button fires. Touch: a tap anywhere on the sea
   // sails up; firing has its own button.
@@ -1105,6 +1136,17 @@
   button(pauseBtn, () => setPaused(!game.paused));
   button(muteBtn, () => { Sfx.unlock(); Sfx.toggleMute(); });
 
+  // Corner-button icons drawn as SVG so they look the same on iOS and Android (emoji and
+  // text glyphs render differently per platform).
+  const svg = body => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const SPEAKER = '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>';
+  const ICON = {
+    pause: svg('<path d="M8.5 6v12M15.5 6v12" stroke-width="3.4"/>'),
+    play: svg('<path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor"/>'),
+    sound: svg(SPEAKER + '<path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+    muted: svg(SPEAKER + '<path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>'),
+  };
+
   // Keeps the DOM buttons in step with the game: reload ring, rum, pause and mute icons.
   const padState = {};
   function updatePad() {
@@ -1116,8 +1158,8 @@
     set('loaded', ready >= 1, v => fireBtn.classList.toggle('ready', v));
     set('rum', game.rapid > 0, v => { fireBtn.classList.toggle('rum', v); fireLabel.textContent = v ? 'RUM!' : 'FIRE'; });
     set('playing', game.state === 'playing', v => { pauseBtn.hidden = !v; });
-    set('paused', game.paused, v => { pauseBtn.textContent = v ? '▶' : '❚❚'; pauseBtn.setAttribute('aria-label', v ? 'Resume' : 'Pause'); });
-    set('muted', Sfx.muted, v => { muteBtn.textContent = v ? '🔇' : '🔊'; muteBtn.setAttribute('aria-label', v ? 'Unmute sound' : 'Mute sound'); });
+    set('paused', game.paused, v => { pauseBtn.innerHTML = v ? ICON.play : ICON.pause; pauseBtn.setAttribute('aria-label', v ? 'Resume' : 'Pause'); });
+    set('muted', Sfx.muted, v => { muteBtn.innerHTML = v ? ICON.muted : ICON.sound; muteBtn.setAttribute('aria-label', v ? 'Unmute sound' : 'Mute sound'); });
   }
   window.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -1125,13 +1167,15 @@
   let last = performance.now();
   let acc = 0;
   let frames = 0;
+  let redraw = true;               // draw the next frame even while paused
   function frame(now) {
     acc += Math.min(0.25, (now - last) / 1000);
     last = now;
     // ?god recordings set window.reefHold and drive time themselves with reefStep().
     if (game.paused || (GOD && window.reefHold)) acc = 0;
     while (acc >= TICK) { update(TICK); acc -= TICK; }
-    render();
+    // Paused: nothing moves, so redraw at ~10 fps (enough for the pause screen) instead of 60-120.
+    if (!game.paused || redraw || frames % 6 === 0) { render(); redraw = false; }
     updatePad();
     if (++frames % 30 === 0) watchInsets();
     requestAnimationFrame(frame);
