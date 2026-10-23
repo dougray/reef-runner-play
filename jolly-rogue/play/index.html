@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#3c8cec">
+<meta name="description" content="A pirate run-and-gun: fight four rival crews and their bosses, grab gold, dress your pirate. Runs entirely on your device.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Jolly Rogue">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/icons/favicon-64.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<title>Jolly Rogue</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #101028; overflow: hidden; }
+  body { display: grid; place-items: center; touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  /* ---- phone controls (shown on touch devices, during play) ---- */
+  #pad, #dpad, .corner { display: none; }
+  html.touch[data-state="play"] #pad, html.touch[data-state="play"] #dpad { display: block; }
+  html.touch .corner { display: grid; }
+  /* The D-pad: a fixed 8-way cross bottom-left. The touch area is a bit bigger than the cross, and
+     a thumb can slide around it (js/touch.js reads the direction from its centre). */
+  #dpad { --s: 132px; position: fixed; z-index: 4; touch-action: none; width: calc(var(--s) + 36px); height: calc(var(--s) + 36px);
+    left: calc(max(18px, env(safe-area-inset-left)) - 18px); bottom: calc(max(18px, env(safe-area-inset-bottom)) - 18px); }
+  /* See-through cross: a thin light outline (.v, the outer plus) around a dark glassy fill (.h). */
+  #dpad i { position: absolute; inset: 18px; --a: calc(100% / 3);
+    clip-path: polygon(var(--a) 0, calc(100% - var(--a)) 0, calc(100% - var(--a)) var(--a), 100% var(--a), 100% calc(100% - var(--a)),
+      calc(100% - var(--a)) calc(100% - var(--a)), calc(100% - var(--a)) 100%, var(--a) 100%, var(--a) calc(100% - var(--a)),
+      0 calc(100% - var(--a)), 0 var(--a), var(--a) var(--a)); }
+  #dpad .v { background: rgba(255,255,255,.5); z-index: 0; }
+  #dpad .h { inset: 21px; background: rgba(16,16,40,.45); z-index: 1; }
+  #dpad b { z-index: 2; }
+  #dpad .hub { display: none; }
+  #dpad b { position: absolute; width: 0; height: 0; border: 9px solid transparent; pointer-events: none; }
+  #dpad b.u { left: calc(50% - 9px); top: 26px; border-bottom: 12px solid rgba(255,255,255,.7); border-top: 0; }
+  #dpad b.d { left: calc(50% - 9px); bottom: 26px; border-top: 12px solid rgba(255,255,255,.7); border-bottom: 0; }
+  #dpad b.l { top: calc(50% - 9px); left: 26px; border-right: 12px solid rgba(255,255,255,.7); border-left: 0; }
+  #dpad b.r { top: calc(50% - 9px); right: 26px; border-left: 12px solid rgba(255,255,255,.7); border-right: 0; }
+  #dpad b.on { border-bottom-color: #fcc838; border-top-color: #fcc838; border-left-color: #fcc838; border-right-color: #fcc838; }
+  #dpad b.u.on { border-left-color: transparent; border-right-color: transparent; }
+  #dpad b.d.on { border-left-color: transparent; border-right-color: transparent; }
+  #dpad b.l.on, #dpad b.r.on { border-top-color: transparent; border-bottom-color: transparent; }
+  #pad { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .pbtn { position: fixed; pointer-events: auto; touch-action: none; width: 66px; height: 66px; border-radius: 50%;
+    border: 3px solid #33323d; font: bold 12px/1 ui-monospace, Menlo, monospace; color: #33323d;
+    box-shadow: 0 4px 0 #33323d; -webkit-appearance: none; appearance: none; padding: 0; user-select: none; -webkit-user-select: none; }
+  .pbtn.down { transform: translateY(3px); box-shadow: 0 1px 0 #33323d; filter: brightness(1.15); }
+  #btn-jump { right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); background: #7aa0e8; }
+  #btn-fire { right: calc(max(18px, env(safe-area-inset-right)) + 80px); bottom: calc(max(18px, env(safe-area-inset-bottom)) + 34px); background: #eed878; }
+  .corner { position: fixed; z-index: 6; width: 40px; height: 40px; border-radius: 50%; place-items: center;
+    top: max(10px, env(safe-area-inset-top)); background: rgba(16,16,40,.5); color: #fff; border: 2px solid rgba(255,255,255,.5);
+    font: bold 15px/1 ui-monospace, Menlo, monospace; -webkit-appearance: none; appearance: none; padding: 0; touch-action: none; }
+  .corner::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; }
+  #btn-pause { left: max(10px, env(safe-area-inset-left)); }
+  #btn-mute { right: max(10px, env(safe-area-inset-right)); }
+  html.touch:not([data-state="play"]) #btn-pause { display: none; }
+  html.touch[data-state="quarters"] .corner, html.touch[data-state="shop"] .corner { display: none; }
+  /* An upright phone: the game fills the width at the top (under the corner buttons) and the
+     stick and buttons get the open space below it, a little bigger. */
+  @media (orientation: portrait) {
+    html.touch body { place-items: start center; padding-top: calc(max(10px, env(safe-area-inset-top)) + 50px); box-sizing: border-box; }
+    html.touch .pbtn { width: 84px; height: 84px; font-size: 14px; }
+    html.touch #dpad { --s: 156px; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 6px); }
+    html.touch #btn-jump { bottom: calc(max(18px, env(safe-area-inset-bottom)) + 24px); }
+    html.touch #btn-fire { right: calc(max(18px, env(safe-area-inset-right)) + 100px); bottom: calc(max(18px, env(safe-area-inset-bottom)) + 70px); }
+  }
+  /* The logo while the art loads (js/game.js removes it). */
+  #splash { position: fixed; inset: 0; margin: auto; width: min(70vw, 70vh, 480px); z-index: 30; pointer-events: none; }
+  #splash.gone { opacity: 0; transition: opacity .4s; }
+  @media (prefers-reduced-motion: reduce) { .pbtn.down { transform: none; } }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<img id="splash" src="assets/logo.png" alt="">
+<canvas id="game" role="img" aria-label="Jolly Rogue, a pirate run-and-gun game" aria-describedby="game-help"></canvas>
+<p id="game-help" class="sr-only">A pirate run-and-gun. Run right through an island, a merchant ship, the hold and a pirate ship, fighting
+  rival crews and their bosses and grabbing gold. Keyboard: arrow keys or WASD move and aim, Space or Z jumps,
+  X, J or F fires (your blade swings when a sailor is close), P or Escape pauses, M mutes, C opens the
+  Captain's Quarters from the title screen. On a phone: drag on the left side to move and aim, and use the JUMP
+  and FIRE buttons. Areas, bosses, victories and your final score are announced.</p>
+<div id="status" class="sr-only" role="status" aria-live="polite"></div>
+<div id="dpad" aria-hidden="true"><i class="h"></i><i class="v"></i><i class="hub"></i><b class="u"></b><b class="r"></b><b class="d"></b><b class="l"></b></div>
+<div id="pad">
+  <button class="pbtn" id="btn-fire" aria-label="Fire">FIRE</button>
+  <button class="pbtn" id="btn-jump" aria-label="Jump">JUMP</button>
+</div>
+<button class="corner" id="btn-pause" aria-label="Pause">II</button>
+<button class="corner" id="btn-mute" aria-label="Mute sound">&#9834;</button>
+<!-- Classic scripts (not ES modules) so the game also runs when opened as a local file. -->
+<script src="js/core.js"></script>
+<script src="js/chunks.js"></script>
+<script src="js/level.js"></script>
+<script src="js/weapons.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/bosses.js"></script>
+<script src="js/actors.js"></script>
+<script src="js/save.js"></script>
+<script src="js/pets.js"></script>
+<script src="js/quarters.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/touch.js"></script>
+<script src="js/music.js"></script>
+<script src="js/pixel.js"></script>
+<script src="js/atlas-index.js"></script>
+<script src="js/atlas.js"></script>
+<script src="js/packart.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/art-world.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/art.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/game.js"></script>
+<script>
+  // Offline support when served over http(s); a double-clicked file doesn't need it.
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
+  }
+</script>
+</body>
+</html>
