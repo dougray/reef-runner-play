@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cloud Dancer: a pirate airship shooter</title>
-<meta name="description" content="Steer the Cloud Dancer, a steampunk pirate airship, through three layers of sky and broadside the King's Aerial Navy. Free; plays in your browser, on your phone, and offline.">
+<meta name="description" content="Steer the Cloud Dancer, a steampunk pirate airship, through four skies and broadside the King's Aerial Navy. Free; plays in your browser, on your phone, and offline.">
 <meta name="theme-color" content="#2f7fd6">
 <link rel="icon" type="image/png" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:title" content="Cloud Dancer: Beyond the Reef">
 <meta property="og:description" content="A free steampunk pirate airship shooter. Four skies, four bosses, one cloud to hide in.">
-<meta property="og:image" content="img/boss.png">
+<meta property="og:image" content="https://reefrunner.us/cloud-dancer/img/boss.jpg">
 <style>
   :root {
     --bg: #10182f; --panel: #1c2846; --ink: #fcfcfc; --muted: #cfe8ff; --gold: #ffd34e;
@@ -58,9 +58,33 @@
     .hero { grid-template-columns: 1fr; }
     header { padding-top: 28px; }
   }
+
+  /* reefrunner.us: the bar across every game page, and the other games at the bottom */
+  .fleet { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; padding: 10px max(16px, calc((100% - 1040px) / 2));
+    background: #1c1512; font: 600 15px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; position: relative; z-index: 5; }
+  .fleet a { color: #f5e2b5; text-decoration: none; padding: 4px 0; }
+  .fleet a:hover { color: #ffd34e; }
+  .fleet a[aria-current="page"] { color: #ffd34e; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+  .fleet .fleet-home { margin-right: auto; font-weight: 800; color: #ffd34e; letter-spacing: .02em; }
+  .fleet-more { max-width: 1040px; margin: 64px auto 0; padding: 0 16px; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .fleet-more h2 { font: 800 1.6rem/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; color: #ffd34e; margin: 0 0 18px; }
+  .fleet-more .fleet-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .fleet-more .fleet-card { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; padding: 16px;
+    background: #1c1512; border: 3px solid #4a3a2c; border-radius: 12px; color: #f5e2b5; }
+  .fleet-more .fleet-card img { width: 96px; height: auto; display: block; }
+  .fleet-more .fleet-card h3 { margin: 0; font-size: 1.15rem; color: #fff; }
+  .fleet-more .fleet-card .fleet-kind { margin: 0 0 4px; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: #ffd34e; }
+  .fleet-more .fleet-card p { margin: 4px 0 10px; font-size: .95rem; }
+  .fleet-more .fleet-card a { color: #ffd34e; font-weight: 700; margin-right: 16px; }
 </style>
 </head>
 <body>
+<nav class="fleet" aria-label="All the games">
+  <a class="fleet-home" href="../">⚓ reefrunner.us · All games</a>
+  <a href="../reef-runner/">Reef Runner</a>
+  <a href="../jolly-rogue/">Jolly Rogue</a>
+  <a href="../cloud-dancer/" aria-current="page">Cloud Dancer</a>
+</nav>
 <header>
   <div class="wrap hero">
     <div>
@@ -68,9 +92,9 @@
       <p class="tag">A pirate airship shooter. Four skies. Four bosses. Clouds to hide in.</p>
       <a class="btn" href="play/">CAST OFF</a>
       <p class="note">Free. Plays in your browser on computers and phones, and installs to work offline.
-        No ads, no accounts, no tracking.</p>
+        No ads, no accounts, no tracking. iPhone, iPad and Android apps are on their way to the App Store and Google Play.</p>
     </div>
-    <figure><img src="img/boss.png" width="960" height="540" alt="The Cloud Dancer airship firing at HMS Thunderer, a huge navy zeppelin, over the sea."></figure>
+    <figure><img src="img/boss.jpg" width="960" height="540" alt="The painted Cloud Dancer airship facing HMS Thunderer, a huge navy dreadnought zeppelin with a red war stripe, over a tropical sea."></figure>
   </div>
 </header>
 
@@ -79,6 +103,7 @@
     <h2 id="what">What ye're in for</h2>
     <div class="grid">
       <div class="card"><h3>Fly free</h3><p>Steer anywhere in the sky with a thumb or the arrow keys. Your broadside cannons fire on their own; FULL STEAM rams anything in your way.</p></div>
+      <div class="card"><h3>Four skies</h3><p>The Reef Skies, the rain-lashed Storm Wall, the Sky-Forts at sunset and the starlit Ceiling of the World, about a minute each, in an endless loop.</p></div>
       <div class="card"><h3>Hide in the clouds</h3><p>Duck into a cloud bank and the navy loses its aim. So do you. In the Storm Wall, watch for lightning.</p></div>
       <div class="card"><h3>The King's Aerial Navy</h3><p>Gyrocopters, zeppelins, balloon mines, flak towers, sky pikes and cloud lurkers across four skies.</p></div>
       <div class="card"><h3>Four bosses</h3><p>HMS Thunderer, the Tempest Engine, Fort Sovereign and the Brass Kraken. Each warns you before it strikes.</p></div>
@@ -90,11 +115,14 @@
   <section class="wrap" aria-labelledby="look">
     <h2 id="look">Have a look</h2>
     <div class="shots">
-      <figure><img src="img/fight.png" width="960" height="540" loading="lazy" alt="The Cloud Dancer on FULL STEAM, trailing steam, with gyrocopters ahead."><figcaption>FULL STEAM over the Reef Skies.</figcaption></figure>
-      <figure><img src="img/storm.png" width="960" height="540" loading="lazy" alt="The airship hidden in a grey storm cloud while a lightning warning flickers."><figcaption>Hiding in the Storm Wall.</figcaption></figure>
-      <figure><img src="img/hangar.png" width="960" height="540" loading="lazy" alt="The Hangar: a red striped airship with a parrot, beside a list of choices."><figcaption>Fit her out in the Hangar.</figcaption></figure>
-      <figure><img src="img/market.png" width="960" height="540" loading="lazy" alt="The Sky Market listing upgrades and prices."><figcaption>The Sky Market opens after every boss.</figcaption></figure>
-      <figure><img src="img/phone.png" width="1688" height="780" loading="lazy" alt="The game on a phone held sideways, with pause and mute in the corners and a FULL STEAM button at the bottom right."><figcaption>On a phone: drag anywhere to steer, tap FULL STEAM to dash.</figcaption></figure>
+      <figure><img src="img/fight.jpg" width="960" height="540" loading="lazy" alt="The airship on FULL STEAM, trailing steam over the Reef Skies, with a flak tower on an islet below."><figcaption>FULL STEAM over the Reef Skies.</figcaption></figure>
+      <figure><img src="img/storm.jpg" width="960" height="540" loading="lazy" alt="The airship tucked into a grey storm cloud in the rain, with HIDDEN IN THE CLOUDS at the bottom of the screen."><figcaption>Hiding in the Storm Wall.</figcaption></figure>
+      <figure><img src="img/forts.jpg" width="960" height="540" loading="lazy" alt="Fort Sovereign, a stone fortress with brass gun turrets on a floating rock with a waterfall, in a sunset sky."><figcaption>Fort Sovereign over the Sky-Forts.</figcaption></figure>
+      <figure><img src="img/kraken.jpg" width="960" height="540" loading="lazy" alt="The Brass Kraken, a riveted brass dome with glowing eyes and clockwork tentacles, over a sea of cloud under the stars."><figcaption>The Brass Kraken at the Ceiling of the World.</figcaption></figure>
+      <figure><img src="img/ceiling.jpg" width="960" height="540" loading="lazy" alt="Gyrocopters flying in a line over a sea of cloud, with floating islands under a starry sky."><figcaption>The Ceiling of the World.</figcaption></figure>
+      <figure><img src="img/hangar.jpg" width="960" height="540" loading="lazy" alt="The Hangar: the airship with a blue striped envelope and a parrot, beside the list of choices."><figcaption>Fit her out in the Hangar.</figcaption></figure>
+      <figure><img src="img/market.jpg" width="960" height="540" loading="lazy" alt="The Sky Market listing upgrades and their prices."><figcaption>The Sky Market opens after every boss.</figcaption></figure>
+      <figure><img src="img/phone.jpg" width="1200" height="555" loading="lazy" alt="The game on a phone held sideways, with pause and mute in the corners and a FULL STEAM button at the bottom right."><figcaption>On a phone: drag anywhere to steer, tap FULL STEAM to dash.</figcaption></figure>
     </div>
   </section>
 
@@ -108,6 +136,30 @@
     </table>
   </section>
 </main>
+
+<section class="fleet-more" aria-labelledby="fleet-more">
+  <h2 id="fleet-more">More pirate games</h2>
+  <div class="fleet-cards">
+    <div class="fleet-card">
+      <img src="../logo-1024.webp" width="1024" height="1088" alt="" loading="lazy">
+      <div>
+        <p class="fleet-kind">One-button sailing</p>
+        <h3>Reef Runner</h3>
+        <p>Tap to stay afloat between storm clouds and sandbars, and sink the King's navy with your bow cannon.</p>
+        <a href="../reef-runner/">See the game</a><a href="../play/">Play now</a>
+      </div>
+    </div>
+    <div class="fleet-card">
+      <img src="../jolly-rogue/logo.png" width="480" height="443" alt="" loading="lazy">
+      <div>
+        <p class="fleet-kind">Pixel run-and-gun</p>
+        <h3>Jolly Rogue</h3>
+        <p>Run, jump and shoot through four rival crews and their bosses, and dress your pirate with the plunder.</p>
+        <a href="../jolly-rogue/">See the game</a><a href="../jolly-rogue/play/">Play now</a>
+      </div>
+    </div>
+  </div>
+</section>
 
 <footer>
   <div class="wrap">

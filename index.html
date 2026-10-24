@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Reef Runner, Jolly Rogue &amp; Cloud Dancer: free pirate games</title>
-<meta name="description" content="Three free pirate games that play right in your browser: Reef Runner, a cartoon sailing arcade game; Jolly Rogue, a pixel-art run-and-gun; and Cloud Dancer, a steampunk airship shooter.">
+<meta name="description" content="Three free pirate games that play right in your browser: Reef Runner, one-button cartoon sailing; Jolly Rogue, a pixel-art run-and-gun; and Cloud Dancer, a painted steampunk airship shooter. No ads, no accounts, no tracking.">
 <meta name="theme-color" content="#0b3f73">
 <link rel="icon" type="image/png" sizes="32x32" href="play/assets/icons/favicon-32.png">
 <link rel="apple-touch-icon" href="play/assets/icons/apple-touch-icon.png">
@@ -16,148 +16,281 @@
 <link rel="canonical" href="https://reefrunner.us/">
 <meta name="twitter:card" content="summary_large_image">
 <style>
-  /* The harbour: three games side by side (stacked on an upright phone). Each wears its own look:
-     Reef Runner's sunny cartoon sea, Jolly Rogue's night-blue pixel art, Cloud Dancer's brass sky. */
+  /* The harbour: an introduction, then a section for each game in that game's own look (Reef
+     Runner's sunny cartoon sea, Jolly Rogue's night-blue pixel art, Cloud Dancer's painted brass
+     sky). Each section leads to the game's own page, where the details are and play begins. */
   :root {
     --ink: #1c1512;
     --gold: #ffd34e;
     --parch: #f5e2b5;
     --reef-sky: #2e8fe6; --reef-lagoon: #2fc3e0; --reef-sea: #1478b8; --reef-deep: #0b3f73;
     --jr-night: #101028; --jr-panel: #1c1c3c; --jr-gold: #fcc838; --jr-ink: #33323d; --jr-muted: #bcdcfc;
+    --cd-brass: #d9a441; --cd-wood: #2a1a12;
     --display: "Arial Rounded MT Bold", "Trebuchet MS", "Verdana", system-ui, sans-serif;
     --body: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
     --pixel: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Trebuchet MS", "Verdana", system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
-  body { margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: 1fr auto; background: var(--ink); }
+  body { margin: 0; background: var(--ink); color: #fff; font: 1.05rem/1.55 var(--body); }
+  img { max-width: 100%; height: auto; display: block; }
   a:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+  .wrap { width: min(100% - 2rem, 66rem); margin-inline: auto; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  main { display: flex; min-height: 0; }
-  .game {
-    position: relative; flex: 1 1 0; min-width: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-    gap: clamp(.8rem, 2vh, 1.4rem);
-    padding: clamp(1.5rem, 5vh, 3.5rem) clamp(1rem, 4vw, 3rem) clamp(2rem, 6vh, 4rem);
-    overflow: hidden;
-    transition: flex-grow .35s ease;
-  }
-  @media (hover: hover) { main:hover .game { flex-grow: .85; } main .game:hover { flex-grow: 1.15; } }
-  .game h2 { margin: 0; line-height: 0; width: 100%; display: flex; justify-content: center; }
-  /* each logo fits its third: no wider than the column, no taller than about half the screen */
-  .game img.logo { display: block; width: auto; height: auto; max-width: min(100%, 22rem); max-height: 44vh; max-height: 44dvh; }
-  .game p { margin: 0; max-width: 32ch; }
-  .about { font-size: .95rem; }
+  /* ---------- the bar across the top (the same one is on every game's page) ---------- */
+  .fleet { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; padding: 10px max(16px, calc((100% - 66rem) / 2));
+    background: var(--ink); font: 600 15px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .fleet a { color: var(--parch); text-decoration: none; padding: 4px 0; }
+  .fleet a:hover { color: var(--gold); }
+  .fleet a[aria-current="page"] { color: var(--gold); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+  .fleet .fleet-home { margin-right: auto; font-weight: 800; color: var(--gold); letter-spacing: .02em; }
 
-  /* ---------- Reef Runner: its own horizon ---------- */
-  .reef {
-    color: #fff; font: 1.1rem/1.5 var(--body);
-    background: linear-gradient(to bottom, var(--reef-sky) 0, #9fdcff 32%, var(--ink) 32%, var(--ink) calc(32% + 3px),
-      var(--reef-lagoon) calc(32% + 3px), var(--reef-sea) 68%, var(--reef-deep) 100%);
+  /* ---------- welcome ---------- */
+  .welcome {
+    text-align: center; padding: clamp(2.5rem, 7vw, 4.5rem) 0 clamp(2.5rem, 6vw, 4rem);
+    background: linear-gradient(to bottom, var(--reef-sky) 0, #9fdcff 55%, var(--ink) 55%, var(--ink) calc(55% + 3px),
+      var(--reef-lagoon) calc(55% + 3px), var(--reef-sea) 80%, var(--reef-deep) 100%);
   }
-  .reef img.logo { max-width: min(100%, 22rem); filter: drop-shadow(0 .8rem 1.2rem rgba(0,0,0,.35)); animation: bob 3s ease-in-out infinite; }
-  @keyframes bob { 50% { transform: translateY(-.5rem) rotate(-1deg); } }
-  .reef p.lede { padding: .4em 1em; border-radius: 14px; background: rgba(28, 21, 18, .45); text-shadow: 0 2px 0 rgba(28, 21, 18, .55); }
-  .reef .sail {
-    font: 900 1.3rem/1 var(--display); color: var(--ink); text-decoration: none;
-    padding: 1rem 2rem; border: 3px solid var(--ink); border-radius: 14px;
-    background: var(--gold); box-shadow: 0 6px 0 var(--ink); transition: transform .08s, box-shadow .08s;
-  }
-  .reef .sail:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
-  .reef .about { color: #fff; }
+  .welcome h1 { margin: 0; font: 900 clamp(2.2rem, 6vw, 3.6rem)/1.05 var(--display); color: var(--gold);
+    text-shadow: 3px 0 var(--ink), -3px 0 var(--ink), 0 3px var(--ink), 0 -3px var(--ink), 3px 3px var(--ink), 0 6px 0 rgba(0,0,0,.3); }
+  .welcome .lede { max-width: 44rem; margin: 1rem auto 0; padding: .7em 1.1em; border-radius: 14px;
+    font-size: 1.15rem; background: rgba(28, 21, 18, .55); text-shadow: 0 2px 0 rgba(28, 21, 18, .5); }
+  .ports { list-style: none; padding: 0; margin: 2rem auto 0; display: flex; justify-content: center; gap: clamp(.8rem, 4vw, 2.5rem); flex-wrap: wrap; }
+  .ports a { display: grid; justify-items: center; gap: .35rem; color: #fff; text-decoration: none; font: 800 1rem/1.2 var(--display); text-shadow: 0 2px 0 var(--ink); }
+  .ports img { width: clamp(6.5rem, 18vw, 9.5rem); filter: drop-shadow(0 .5rem .7rem rgba(0,0,0,.4)); transition: transform .15s; }
+  .ports a:hover img { transform: translateY(-.3rem) rotate(-2deg); }
 
-  /* ---------- Jolly Rogue: night sea, pixel edges ---------- */
-  .jolly {
-    color: #fcfcfc; font: 1.05rem/1.5 var(--pixel);
-    background:
-      radial-gradient(ellipse at 50% 38%, #2c2c5c 0, transparent 60%),
+  /* ---------- a game ---------- */
+  .game { padding: clamp(3rem, 7vw, 5rem) 0; scroll-margin-top: 1rem; }
+  .game .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: clamp(1.5rem, 4vw, 3.5rem); align-items: center; }
+  .game.flip .text { order: 2; }
+  .game .logo { width: min(100%, 17rem); margin-bottom: 1rem; }
+  .kind { margin: 0 0 .4rem; font: 800 .85rem/1.2 var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+  .game h2 { margin: 0; }
+  .game p { margin: .6rem 0 0; }
+  .game ul.facts { margin: 1rem 0 0; padding: 0; list-style: none; display: grid; gap: .45rem; }
+  .game ul.facts li { padding-left: 1.6rem; position: relative; }
+  .game ul.facts li::before { content: "✦"; position: absolute; left: 0; top: 0; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1.4rem; margin-top: 1.6rem; }
+  .actions .play { font-weight: 700; }
+  .see { display: inline-block; transition: transform .08s, box-shadow .08s; }
+  .media img { width: 100%; }
+
+  .reef { color: #fff; background: linear-gradient(to bottom, var(--reef-lagoon), var(--reef-sea) 55%, var(--reef-deep)); }
+  .reef .logo { filter: drop-shadow(0 .6rem 1rem rgba(0,0,0,.35)); }
+  .reef .kind { color: var(--gold); text-shadow: 0 2px 0 var(--ink); }
+  .reef ul.facts li::before { color: var(--gold); }
+  .reef .see { font: 900 1.2rem/1 var(--display); color: var(--ink); text-decoration: none; padding: .95rem 1.8rem;
+    border: 3px solid var(--ink); border-radius: 14px; background: var(--gold); box-shadow: 0 6px 0 var(--ink); }
+  .reef .play { color: #fff; }
+  .reef .phones { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 26rem; margin-inline: auto; }
+  .reef .phones img { border: 6px solid var(--ink); border-radius: 22px; box-shadow: 0 .8rem 1.4rem rgba(0,0,0,.35); }
+  .reef .phones img:last-child { margin-top: 2.2rem; }
+
+  .jolly { color: #fcfcfc; font-family: var(--pixel); font-size: .98rem;
+    background: radial-gradient(ellipse at 70% 40%, #2c2c5c 0, transparent 60%),
       repeating-linear-gradient(to bottom, transparent 0 6px, rgba(255,255,255,.025) 6px 7px),
-      linear-gradient(to bottom, var(--jr-night) 0, #1a1a44 60%, #0a0a1c 100%);
-  }
-  .jolly img.logo { filter: drop-shadow(0 .6rem 0 rgba(0,0,0,.45)); }
-  .jolly p.lede { color: var(--jr-muted); text-shadow: 2px 2px 0 #000; }
-  .jolly .sail {
-    font: 800 1.25rem/1 var(--pixel); letter-spacing: .06em; color: var(--jr-ink); text-decoration: none;
-    padding: 1rem 1.9rem; border: 4px solid var(--jr-ink); background: var(--jr-gold);
-    box-shadow: 0 6px 0 var(--jr-ink); transition: transform .08s, box-shadow .08s;
-  }
-  .jolly .sail:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--jr-ink); }
-  .jolly .about { color: var(--jr-gold); }
+      linear-gradient(to bottom, var(--jr-night), #1a1a44 60%, #0a0a1c); }
+  .jolly .logo { filter: drop-shadow(0 .5rem 0 rgba(0,0,0,.45)); }
+  .jolly .kind { color: var(--jr-gold); font-family: var(--pixel); }
+  .jolly p, .jolly li { color: var(--jr-muted); }
+  .jolly ul.facts li::before { color: var(--jr-gold); content: "▶"; font-size: .8em; top: .15em; }
+  .jolly .see { font: 800 1.15rem/1 var(--pixel); letter-spacing: .06em; color: var(--jr-ink); text-decoration: none;
+    padding: .95rem 1.7rem; border: 4px solid var(--jr-ink); background: var(--jr-gold); box-shadow: 0 6px 0 #000; }
+  .jolly .play { color: var(--jr-gold); }
+  /* the screenshot has dark bars at its sides; the frame crops them */
+  .jolly .media img { aspect-ratio: 768 / 457; object-fit: cover; image-rendering: pixelated; border: 4px solid #000; box-shadow: 0 .6rem 0 rgba(0,0,0,.45); }
 
-  /* ---------- Cloud Dancer: brass and open sky ---------- */
-  .cloud {
-    color: #fff; font: 1.05rem/1.5 "Trebuchet MS", "Verdana", system-ui, sans-serif;
-    background: linear-gradient(to bottom, #2f7fd6 0, #8fd0f7 58%, #4fb7d6 58.5%, #1d6aa0 100%);
-  }
-  .cloud img.logo { filter: drop-shadow(0 .8rem 1rem rgba(0,0,0,.35)); animation: drift 4s ease-in-out infinite; }
-  @keyframes drift { 50% { transform: translateY(-.4rem) rotate(1deg); } }
-  .cloud p.lede { padding: .4em 1em; border-radius: 10px; background: rgba(42, 26, 18, .55); text-shadow: 0 2px 0 rgba(0,0,0,.4); }
-  .cloud .sail {
-    font: 800 1.2rem/1 "Trebuchet MS", system-ui, sans-serif; letter-spacing: .04em; color: #2a1a12; text-decoration: none;
-    padding: 1rem 1.8rem; border: 3px solid #2a1a12; border-radius: 8px;
-    background: linear-gradient(#f0c35a, #d9a441); box-shadow: 0 6px 0 #2a1a12; transition: transform .08s, box-shadow .08s;
-  }
-  .cloud .sail:active { transform: translateY(4px); box-shadow: 0 2px 0 #2a1a12; }
-  .cloud .about { color: #fff; text-shadow: 0 1px 0 #2a1a12; }
+  .cloud { color: #fff; font-family: var(--sans);
+    background: linear-gradient(to bottom, #1d2a5c 0, #4a5fb0 30%, #f6b26b 62%, #ffe0a8 63%, #6a7aa8 63.4%, #1f2f5c 100%); }
+  .cloud .logo { filter: drop-shadow(0 .6rem 1rem rgba(0,0,0,.4)); }
+  .cloud .kind { color: var(--gold); }
+  .cloud .text { padding: 1.4rem 1.6rem; border-radius: 14px; background: rgba(28, 18, 14, .62); }
+  .cloud ul.facts li::before { color: var(--cd-brass); content: "⚙"; }
+  .cloud .see { font: 800 1.15rem/1 var(--sans); letter-spacing: .04em; color: var(--cd-wood); text-decoration: none;
+    padding: .95rem 1.7rem; border: 3px solid var(--cd-wood); border-radius: 8px; background: linear-gradient(#f0c35a, var(--cd-brass)); box-shadow: 0 6px 0 var(--cd-wood); }
+  .cloud .play { color: var(--gold); }
+  .cloud .media img { border: 4px solid var(--cd-wood); border-radius: 8px; box-shadow: 0 .8rem 1.4rem rgba(0,0,0,.4); }
+  .new { display: inline-block; margin-left: .5rem; padding: .15rem .5rem; border-radius: 6px; background: var(--gold); color: var(--cd-wood); font-size: .75rem; }
+  .see:active { transform: translateY(4px); }
 
-  /* the seams between the seas, with an "or" coin */
-  .seam { position: relative; flex: 0 0 6px; background: var(--ink); z-index: 2; }
-  .seam span {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: 3.2rem; height: 3.2rem; border-radius: 50%; display: grid; place-items: center;
-    font: 900 1rem/1 var(--display); color: var(--ink); background: var(--gold);
-    border: 4px solid var(--ink); box-shadow: 0 4px 0 rgba(0,0,0,.35);
-  }
+  /* ---------- comparison and phones ---------- */
+  .parch { background: var(--parch); color: var(--ink); padding: clamp(3rem, 6vw, 4.5rem) 0; }
+  .parch h2 { margin: 0 0 1rem; font: 900 clamp(1.7rem, 4vw, 2.3rem)/1.1 var(--display); }
+  .compare { overflow-x: auto; }
+  table { width: 100%; min-width: 40rem; border-collapse: collapse; font-size: 1rem; }
+  th, td { text-align: left; padding: .75rem .9rem; vertical-align: top; border-bottom: 2px dashed rgba(28,21,18,.2); }
+  thead th { font: 800 1.05rem/1.2 var(--display); border-bottom: 3px solid var(--ink); }
+  thead th a { color: var(--ink); }
+  tbody th { font: 800 .95rem/1.3 var(--display); width: 9rem; }
+  .phone-play { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+  .phone-play div { border-left: 4px solid var(--reef-sea); padding: .2rem 0 .2rem 1.1rem; }
+  .phone-play h3 { margin: 0 0 .3rem; font: 800 1.15rem/1.2 var(--display); }
+  .phone-play p { margin: 0; }
 
-  footer { background: var(--ink); color: var(--parch); font: .9rem/1.5 var(--body); padding: .9rem 1rem calc(.9rem + env(safe-area-inset-bottom)); }
-  footer .wrap { display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem 1.6rem; }
+  footer { background: var(--ink); color: var(--parch); font-size: .92rem; padding: 1.4rem 0 calc(1.4rem + env(safe-area-inset-bottom)); }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .4rem 1.6rem; }
   footer p { margin: 0; }
   footer a { color: var(--gold); }
 
-  /* An upright phone: one game above the other, each filling half the screen. */
-  @media (max-aspect-ratio: 4/5) {
-    main { flex-direction: column; }
-    .game { padding: 1rem 1rem 1.2rem; gap: .55rem; overflow: visible; }
-    .reef, .jolly { padding-bottom: 1.8rem; }   /* room for the "or" coins on the seams */
-    .jolly, .cloud { padding-top: 1.8rem; }
-    .game img.logo { max-height: 17vh; max-height: 17dvh; }
-    .game { gap: .4rem; }
-    .game p.lede { display: none; }          /* three games to a screen: logos and buttons only */
-    .reef p.lede { padding: .3em .8em; }
-    .reef .sail, .jolly .sail, .cloud .sail { font-size: 1rem; padding: .65rem 1.4rem; }
-    .about { font-size: .85rem; }
-    footer { font-size: .8rem; }
+  @media (max-width: 760px) {
+    .game .wrap { grid-template-columns: 1fr; }
+    .game.flip .text { order: 0; }
+    .game .logo { width: min(70%, 14rem); margin-inline: auto; }
+    .reef .phones { max-width: 20rem; }
+    /* the horizon drops below the welcome text, and the comparison fits the screen */
+    .welcome { background: linear-gradient(to bottom, var(--reef-sky) 0, #9fdcff 70%, var(--ink) 70%, var(--ink) calc(70% + 3px),
+      var(--reef-lagoon) calc(70% + 3px), var(--reef-sea) 88%, var(--reef-deep) 100%); }
+    table { min-width: 0; font-size: .85rem; }
+    th, td { padding: .55rem .4rem; }
+    tbody th { width: 5.4rem; font-size: .8rem; }
+    thead th { font-size: .85rem; }
   }
-  @media (prefers-reduced-motion: reduce) { .reef img.logo, .cloud img.logo { animation: none; } .game { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .ports img, .see { transition: none; } }
 </style>
 </head>
 <body>
+<nav class="fleet" aria-label="All the games">
+  <a class="fleet-home" href="./" aria-current="page">⚓ reefrunner.us · All games</a>
+  <a href="reef-runner/">Reef Runner</a>
+  <a href="jolly-rogue/">Jolly Rogue</a>
+  <a href="cloud-dancer/">Cloud Dancer</a>
+</nav>
+
+<header class="welcome">
+  <div class="wrap">
+    <h1>Three free pirate games</h1>
+    <p class="lede">A one-button sailing game, a pixel-art run-and-gun and a painted airship shooter.
+      They play right here in your browser, on phones, tablets and computers, keep working with no
+      signal once they've loaded, and have no ads, no accounts and no tracking.</p>
+    <ul class="ports" aria-label="Jump to a game">
+      <li><a href="#reef"><img src="logo-1024.webp" width="1024" height="1088" alt="">Reef Runner</a></li>
+      <li><a href="#jolly"><img src="jolly-rogue/logo.png" width="480" height="443" alt="">Jolly Rogue</a></li>
+      <li><a href="#cloud"><img src="cloud-dancer/logo.png" width="480" height="484" alt="">Cloud Dancer</a></li>
+    </ul>
+  </div>
+</header>
+
 <main>
-  <section class="game reef" aria-labelledby="reef-title">
-    <h2 id="reef-title"><img class="logo" src="logo-1024.webp" width="1024" height="1088" alt="Reef Runner"></h2>
-    <p class="lede">Steer your pirate ship past storms &amp; sandbars and sink the King's navy.</p>
-    <a class="sail" href="play/">Set sail</a>
-    <a class="about" href="reef-runner/">About Reef Runner</a>
+  <section class="game reef" id="reef" aria-labelledby="reef-title">
+    <div class="wrap">
+      <div class="text">
+        <img class="logo" src="logo-1024.webp" width="1024" height="1088" alt="">
+        <p class="kind">One-button sailing · Cartoon</p>
+        <h2 id="reef-title" class="sr-only">Reef Runner</h2>
+        <p>Your pirate ship always sails forward. Keep her afloat between the storm clouds and the
+          sandbars, scoop up treasure and rum, and sink the King's navy with your bow cannon.</p>
+        <ul class="facts">
+          <li>Tap to sail, hold to keep the cannon firing.</li>
+          <li>British frigates, Spanish galleons and storms that count double.</li>
+          <li>HMS Invincible waits at reef 40 with a wall of shot.</li>
+        </ul>
+        <div class="actions">
+          <a class="see" href="reef-runner/">See Reef Runner</a>
+          <a class="play" href="play/">or play now</a>
+        </div>
+      </div>
+      <div class="media phones">
+        <img src="reef-runner/img/frigate.jpg" width="540" height="960" loading="lazy" alt="Reef Runner on a phone: the pirate ship sailing between sandbars toward a British frigate.">
+        <img src="reef-runner/img/broadside.jpg" width="540" height="960" loading="lazy" alt="HMS Invincible firing a wall of cannonballs at the pirate ship.">
+      </div>
+    </div>
   </section>
-  <div class="seam" aria-hidden="true"><span>or</span></div>
-  <section class="game jolly" aria-labelledby="jolly-title">
-    <h2 id="jolly-title"><img class="logo" src="jolly-rogue/logo.png" width="480" height="443" alt="Jolly Rogue"></h2>
-    <p class="lede">Run, jump and shoot through four rival crews and their bosses.</p>
-    <a class="sail" href="jolly-rogue/play/">SET SAIL</a>
-    <a class="about" href="jolly-rogue/">About Jolly Rogue</a>
+
+  <section class="game jolly flip" id="jolly" aria-labelledby="jolly-title">
+    <div class="wrap">
+      <div class="text">
+        <img class="logo" src="jolly-rogue/logo.png" width="480" height="443" alt="">
+        <p class="kind">Run-and-gun · Pixel art</p>
+        <h2 id="jolly-title" class="sr-only">Jolly Rogue</h2>
+        <p>A pirate on foot with a blade and a pistol, fighting across Palm Tree Island, a merchant
+          ship, the hold and a pirate ship. Grab bigger guns along the way and spend your gold in the
+          Black Market after every boss.</p>
+        <ul class="facts">
+          <li>Run, double-jump and shoot in eight directions.</li>
+          <li>Four rival crews and four bosses, from the Big Guy to the Whale.</li>
+          <li>Dress your captain or she-captain in the Captain's Quarters.</li>
+        </ul>
+        <div class="actions">
+          <a class="see" href="jolly-rogue/">SEE JOLLY ROGUE</a>
+          <a class="play" href="jolly-rogue/play/">or play now</a>
+        </div>
+      </div>
+      <div class="media">
+        <img src="jolly-rogue/img/town.png" width="960" height="457" loading="lazy" alt="Jolly Rogue: the captain on a merchant ship's deck facing the Red Hands crew, with gun pickups overhead.">
+      </div>
+    </div>
   </section>
-  <div class="seam" aria-hidden="true"><span>or</span></div>
-  <section class="game cloud" aria-labelledby="cloud-title">
-    <h2 id="cloud-title"><img class="logo" src="cloud-dancer/logo.png" width="480" height="484" alt="Cloud Dancer: Beyond the Reef"></h2>
-    <p class="lede">Take your airship into the sky and broadside the King's Aerial Navy.</p>
-    <a class="sail" href="cloud-dancer/play/">CAST OFF</a>
-    <a class="about" href="cloud-dancer/">About Cloud Dancer</a>
+
+  <section class="game cloud" id="cloud" aria-labelledby="cloud-title">
+    <div class="wrap">
+      <div class="text">
+        <img class="logo" src="cloud-dancer/logo.png" width="480" height="484" alt="">
+        <p class="kind">Airship shooter · Painted steampunk <span class="new">NEW</span></p>
+        <h2 id="cloud-title" class="sr-only">Cloud Dancer: Beyond the Reef</h2>
+        <p>Take a pirate airship into the sky. Fly anywhere, ram with FULL STEAM, and bring down HMS
+          Thunderer, the Tempest Engine, Fort Sovereign and the Brass Kraken.</p>
+        <ul class="facts">
+          <li>Drag anywhere to steer; the cannons fire on their own.</li>
+          <li>Duck into a cloud and the King's Aerial Navy loses its aim.</li>
+          <li>Four skies, and a Hangar to paint your airship and sign on a parrot.</li>
+        </ul>
+        <div class="actions">
+          <a class="see" href="cloud-dancer/">SEE CLOUD DANCER</a>
+          <a class="play" href="cloud-dancer/play/">or play now</a>
+        </div>
+      </div>
+      <div class="media">
+        <img src="cloud-dancer/img/forts.jpg" width="960" height="540" loading="lazy" alt="Cloud Dancer: the painted pirate airship facing Fort Sovereign, a stone fortress on a floating rock with a waterfall, in a sunset sky.">
+      </div>
+    </div>
+  </section>
+
+  <section class="parch" aria-labelledby="compare">
+    <div class="wrap">
+      <h2 id="compare">Which ship is yours?</h2>
+      <div class="compare">
+        <table>
+          <thead>
+            <tr><td></td><th scope="col"><a href="reef-runner/">Reef Runner</a></th><th scope="col"><a href="jolly-rogue/">Jolly Rogue</a></th><th scope="col"><a href="cloud-dancer/">Cloud Dancer</a></th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Kind of game</th><td>One-button arcade sailing</td><td>Side-scrolling run-and-gun</td><td>Side-scrolling shooter</td></tr>
+            <tr><th scope="row">Controls</th><td>Tap to sail, one button to fire</td><td>D-pad, jump and fire</td><td>Drag to steer; the guns fire themselves</td></tr>
+            <tr><th scope="row">Look</th><td>Bright cartoon</td><td>Retro pixel art</td><td>Painted steampunk</td></tr>
+            <tr><th scope="row">Bosses</th><td>HMS Invincible</td><td>Four, one for each crew</td><td>Four, one for each sky</td></tr>
+            <tr><th scope="row">Make it yours</th><td>Chase your best score</td><td>Dress your pirate, pick a class and a pet</td><td>Paint your airship, pick a gun and a parrot</td></tr>
+            <tr><th scope="row">Good for</th><td>A quick game, for anyone</td><td>Platformer fans</td><td>Shoot-'em-up fans</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="phone-play">
+        <div>
+          <h3>Play now, on anything</h3>
+          <p>Every game runs in the browser you already have. Open one and play; there's nothing to
+            download or sign up for.</p>
+        </div>
+        <div>
+          <h3>Keep it on your home screen</h3>
+          <p>On a phone, use your browser's Share or menu button and choose Add to Home Screen. The
+            game then opens like an app and plays with no signal.</p>
+        </div>
+        <div>
+          <h3>Apps on the way</h3>
+          <p>iPhone, iPad and Android apps of all three games are being readied for the App Store
+            and Google Play. They'll be linked here when they're out.</p>
+        </div>
+      </div>
+    </div>
   </section>
 </main>
+
 <footer>
   <div class="wrap">
-    <p>Three free pirate games. They play in your browser, on phones and computers. No ads, no accounts.</p>
-    <p>Built by <a href="https://websmithtx.com/">Websmith</a></p>
+    <p>Three free pirate games. No ads, no accounts, no tracking. Built by <a href="https://websmithtx.com/">Websmith</a></p>
     <p>Reef Runner: <a href="privacy/">Privacy</a> · <a href="support/">Support</a></p>
     <p>Jolly Rogue: <a href="jolly-rogue/privacy/">Privacy</a> · <a href="jolly-rogue/support/">Support</a></p>
     <p>Cloud Dancer: <a href="cloud-dancer/privacy/">Privacy</a> · <a href="cloud-dancer/support/">Support</a></p>
