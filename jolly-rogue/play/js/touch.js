@@ -30,7 +30,9 @@
     const root = document.documentElement;
     const pad = $('dpad'), arrows = { up: pad.querySelector('.u'), right: pad.querySelector('.r'), down: pad.querySelector('.d'), left: pad.querySelector('.l') };
     const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-    if (coarse || 'ontouchstart' in window) root.classList.add('touch');
+    // A TV's web view claims a coarse pointer and touch events but has no touch points.
+    const touchable = navigator.maxTouchPoints === undefined || navigator.maxTouchPoints > 0;
+    if (touchable && (coarse || 'ontouchstart' in window)) root.classList.add('touch');
     window.addEventListener('pointerdown', e => {
       if (e.pointerType === 'touch' && !root.classList.contains('touch')) { root.classList.add('touch'); window.dispatchEvent(new Event('resize')); }
     }, true);

@@ -34,11 +34,14 @@
     const top = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
     const fit = Math.min(window.innerWidth * dpr / viewW(), (window.innerHeight - top) * dpr / JR.VIEW_H);
     const phone = document.documentElement.classList.contains('touch');
-    scale = fit >= 2 && !phone ? Math.floor(fit) : fit;
+    const shown = fit >= 2 && !phone ? Math.floor(fit) : fit;   // whole-number scaling keeps pixels crisp
+    // The canvas has at most 1080p's pixels (plenty, even on a 4K TV) and is stretched to `shown`.
+    const cap = 1920 / viewW();
+    scale = shown <= cap ? shown : Math.max(1, Math.floor(cap));
     canvas.width = Math.round(viewW() * scale);
     canvas.height = Math.round(JR.VIEW_H * scale);
-    canvas.style.width = canvas.width / dpr + 'px';
-    canvas.style.height = canvas.height / dpr + 'px';
+    canvas.style.width = viewW() * shown / dpr + 'px';
+    canvas.style.height = JR.VIEW_H * shown / dpr + 'px';
     JR.px.S = scale;
     measureInsets();
   }
@@ -200,6 +203,7 @@
       }
     },
     canExit: () => state === 'title',
+    sideways: () => state === 'play',
   };
   // Phone controls (js/touch.js), plus taps on the canvas for every menu.
   touch = JR.initTouch(input, { onPause: () => { sfx.unlock(); togglePause(); }, onMute: () => { sfx.unlock(); sfx.toggleMute(); } });
@@ -409,9 +413,12 @@
       const go = JR.touchMode() ? 'TAP TO SET SAIL' : JR.padMode() ? 'PRESS A / OK TO SET SAIL' : 'PRESS SPACE TO SET SAIL';
       if (Math.floor(t * 2) % 2 === 0) { JR.ui.banner(ctx, W / 2, 98, JR.px.textImage(go).width + 36); ink(go, 104); }
       say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : JR.padMode() ? "Y OR FAST-FORWARD: CAPTAIN'S QUARTERS" : "C: CAPTAIN'S QUARTERS", 118, 1, '#fcc838');
-      if (JR.padMode()) {
+      if (JR.remoteMode()) {
+        say('HOLD THE REMOTE SIDEWAYS: RING MOVES + AIMS', 196, 1, '#fce4a8');
+        say('OK JUMPS  ·  FAST-FORWARD FIRES  ·  BACK PAUSES', 207, 1, '#fce4a8');
+      } else if (JR.padMode()) {
         say('STICK/D-PAD MOVE + AIM   A JUMP   X OR B FIRE', 196, 1, '#fce4a8');
-        say('REMOTE: OK JUMPS, PLAY/PAUSE FIRES', 207, 1, '#fce4a8');
+        say('TAP JUMP FOR A HOP  ·  DOWN+JUMP DROPS THROUGH DOCKS', 207, 1, '#fce4a8');
       } else if (JR.touchMode()) {
         say('D-PAD: MOVE + AIM   RIGHT: JUMP + FIRE', 196, 1, '#fce4a8');
         say('TAP ANYWHERE TO START', 207, 1, '#fce4a8');

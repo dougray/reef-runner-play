@@ -15,6 +15,11 @@
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return true;
   }
+
+  // Leaving the game (another tab, or the Home button on a phone or TV): silence until it's back.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => { if (ac) { if (document.hidden) ac.suspend(); else ac.resume(); } });
+  }
   function tone(freq, dur, type = 'square', vol = 0.12, slideTo = null) {
     const t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t0);

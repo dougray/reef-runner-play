@@ -50,8 +50,13 @@ window.Sfx = (() => {
       musicGain.connect(master);
       loadMusic();
     }
-    if (ac.state === 'suspended') ac.resume();
+    if (ac.state === 'suspended' && !document.hidden) ac.resume();   // stays silent while the game is out of sight
     return ac;
+  }
+
+  // Leaving the game (another tab, or the Home button on a phone or TV): silence until it's back.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => { if (ac) { if (document.hidden) ac.suspend(); else ac.resume(); } });
   }
 
   function loadMusic() {

@@ -15,6 +15,9 @@
   CD.INV_TIME = 1.2;         // invulnerable after a hit
   // FULL STEAM
   CD.STEAM_MAX = 100;
+  CD.SHIELD_TIME = 1.5;
+  CD.CHEST_GOLD = 25;        // a treasure chest
+  CD.BURST_R = 16;           // exploding shells' reach      // the market's steam shield: safe this long after FULL STEAM
   CD.STEAM_REGEN = 14;       // per second
   CD.DASH_COST = 45;
   CD.DASH_TIME = 0.45;

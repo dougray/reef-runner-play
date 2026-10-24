@@ -19,6 +19,11 @@
     return true;
   }
 
+  // Leaving the game (another tab, or the Home button on a phone or TV): silence until it's back.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => { if (ac) { if (document.hidden) ac.suspend(); else ac.resume(); } });
+  }
+
   function tone(freq, dur, type = 'square', vol = 0.15, slideTo = null, delay = 0) {
     const t0 = ac.currentTime + delay;
     const o = ac.createOscillator(), g = ac.createGain();

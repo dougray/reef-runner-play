@@ -6,7 +6,8 @@
   CD.makeShip = () => ({
     x: 40, y: CD.VIEW_H / 2 - CD.SHIP_H / 2, w: CD.SHIP_W, h: CD.SHIP_H, vx: 0, vy: 0, tilt: 0,
     hearts: CD.MAX_HEARTS, maxHearts: CD.MAX_HEARTS, lives: CD.LIVES, inv: 0, dead: false,
-    steamMax: CD.STEAM_MAX, fireMult: 1, wide: false, magnet: false, pet: 'none', look: null,
+    steamMax: CD.STEAM_MAX, fireMult: 1, magnet: false, pet: 'none', look: null,
+    spread: 0, heavy: 0, burst: false, rear: false, wingman: false, shield: false, gunRack: false,   // upgrades
     steam: CD.STEAM_MAX, dash: 0, dashCool: 0, fireCool: 0, t: 0, weapon: 'cannon', weaponT: 0,
   });
 
@@ -15,8 +16,9 @@
   CD.updateShip = (s, input, dt) => {
     s.t += dt;
     s.inv = Math.max(0, s.inv - dt);
+    s.shieldT = Math.max(0, (s.shieldT || 0) - dt);
     s.dashCool = Math.max(0, s.dashCool - dt);
-    if (s.weaponT > 0 && (s.weaponT -= dt) <= 0) { s.weaponT = 0; s.weapon = 'cannon'; }   // a pickup gun runs out
+    if (s.weaponT > 0 && !s.gunRack && (s.weaponT -= dt) <= 0) { s.weaponT = 0; s.weapon = 'cannon'; }   // a pickup gun runs out (not in the gun rack)
     if (s.dash <= 0) s.steam = Math.min(s.steamMax, s.steam + CD.STEAM_REGEN * dt);   // no refill mid-dash
 
     if (input.dashPressed && s.dash <= 0 && s.dashCool <= 0 && s.steam >= CD.DASH_COST) {
@@ -38,7 +40,10 @@
       const sp = Math.hypot(vx, vy);
       if (sp > max) { vx = (vx / sp) * max; vy = (vy / sp) * max; }
     }
-    if (s.dash > 0) { s.dash = Math.max(0, s.dash - dt); vx = CD.DASH_SPEED; }
+    if (s.dash > 0) {
+      s.dash = Math.max(0, s.dash - dt); vx = CD.DASH_SPEED;
+      if (s.dash === 0 && s.shield) { s.inv = Math.max(s.inv, CD.SHIELD_TIME); s.shieldT = CD.SHIELD_TIME; }   // the steam shield holds a moment after
+    }
     s.vx = vx; s.vy = vy;
     s.x = CD.clamp(s.x + vx * dt, CD.MARGIN, CD.VIEW_W - CD.MARGIN - s.w);
     s.y = CD.clamp(s.y + vy * dt, CD.MARGIN, CD.VIEW_H - CD.MARGIN - s.h);

@@ -11,7 +11,12 @@
     { key: 'sail', label: 'SAIL', options: [opt('roger', 'JOLLY ROGER'), opt('swords', 'CROSSED SWORDS', 60), opt('red', 'RED SAIL', 80)] },
     { key: 'hull', label: 'HULL', options: [opt('oak', 'OAK'), opt('ebony', 'EBONY', 60), opt('crimson', 'CRIMSON', 60)] },
     { key: 'gun', label: 'START GUN', options: [opt('cannon', 'CANNONS'), opt('chain', 'CHAIN SHOT', 200, 'FIRST 30 SECONDS'), opt('harpoon', 'HARPOON', 250, 'FIRST 30 SECONDS'), opt('gatling', 'GATLING', 300, 'FIRST 30 SECONDS')] },
-    { key: 'pet', label: 'CREW PET', options: [opt('none', 'NONE'), opt('parrot', 'PARROT', 150, 'FETCHES NEARBY GOLD')] },
+    { key: 'pet', label: 'CREW PET', options: [opt('none', 'NONE'), opt('parrot', 'PARROT', 150, 'BRINGS THE PLUNDER IN FASTER')] },
+    // Upgrades that last every run. Each level needs the one before it.
+    { key: 'armor', label: 'HULL ARMOR', tiers: true, options: [opt('a0', 'STOCK'), opt('a1', '+1 HEART', 150, 'START EVERY RUN WITH AN EXTRA HEART'), opt('a2', '+2 HEARTS', 400, 'START WITH TWO EXTRA HEARTS'), opt('a3', '+3 HEARTS', 800, 'START WITH THREE EXTRA HEARTS')] },
+    { key: 'boilerUp', label: 'BOILER', tiers: true, options: [opt('u0', 'STOCK'), opt('u1', '+25 STEAM', 120, 'MORE FULL STEAM, EVERY RUN'), opt('u2', '+50 STEAM', 300, 'EVEN MORE FULL STEAM')] },
+    { key: 'crew', label: 'GUN CREW', tiers: true, options: [opt('c0', 'STOCK'), opt('c1', 'QUICK', 200, 'CANNONS FIRE 15% FASTER, EVERY RUN'), opt('c2', 'QUICKER', 500, 'CANNONS FIRE 28% FASTER')] },
+    { key: 'broadside', label: 'BROADSIDE', tiers: true, options: [opt('b0', 'TWO BALLS'), opt('b1', 'THREE BALLS', 350, 'START EVERY RUN WITH 3 CANNONBALLS')] },
   ];
   const VERSION = 1;
   const row = key => CD.CATALOG.find(r => r.key === key);
@@ -25,8 +30,10 @@
   };
   CD.owns = (p, key, id) => { const o = option(key, id); return !!o && (o.price === 0 || (p.owned[key] || []).includes(id)); };
   CD.buy = (p, key, id) => {
-    const o = option(key, id);
+    const o = option(key, id), r = row(key);
     if (!o || CD.owns(p, key, id) || p.gold < o.price) return false;
+    const i = r.options.indexOf(o);
+    if (r.tiers && i > 1 && !CD.owns(p, key, r.options[i - 1].id)) return false;   // levels in order
     p.gold -= o.price; (p.owned[key] = p.owned[key] || []).push(id);
     return true;
   };
@@ -60,6 +67,11 @@
     s.look = { envelope: equip.envelope, pattern: equip.pattern, sail: equip.sail, hull: equip.hull };
     s.pet = equip.pet;
     if (equip.gun && equip.gun !== 'cannon') { s.weapon = equip.gun; s.weaponT = 30; }
+    const level = key => Math.max(0, row(key).options.findIndex(o => o.id === equip[key]));
+    s.maxHearts += level('armor'); s.hearts = s.maxHearts;
+    s.steamMax += 25 * level('boilerUp'); s.steam = s.steamMax;
+    s.fireMult *= [1, 0.85, 0.72][level('crew')];
+    s.spread = Math.max(s.spread || 0, level('broadside'));
     return s;
   };
 })();

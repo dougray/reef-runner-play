@@ -104,13 +104,13 @@
   art.sprite = k => (art.spritesReady() || img.ship) && loaded(k) ? img[k] : null;
   // A sprite multiplied by a colour (storm grey, ink), painted once and kept.
   const tints = new Map();
-  art.tinted = (k, colour) => {
-    const key = k + colour, src = art.sprite(k);
+  art.tinted = (k, colour, mode = 'multiply') => {
+    const key = k + colour + mode, src = art.sprite(k);
     if (!src) return null;
     if (!tints.has(key)) {
       const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
       const g = c.getContext('2d');
-      g.drawImage(src, 0, 0); g.globalCompositeOperation = 'multiply'; g.fillStyle = colour; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(src, 0, 0); g.globalCompositeOperation = mode; g.fillStyle = colour; g.fillRect(0, 0, c.width, c.height);
       g.globalCompositeOperation = 'destination-in'; g.drawImage(src, 0, 0);
       tints.set(key, c);
     }
@@ -162,7 +162,7 @@
   }
 
   art.drawShip = (ctx, s, x, y, t) => {
-    if (s.inv > 0 && !s.dash && Math.floor(t * 20) % 2) return;
+    if (s.inv > 0 && !s.dash && !(s.shieldT > 0) && Math.floor(t * 20) % 2) return;
     if (!art.spritesReady()) return;
     ctx.save();
     ctx.translate(x + s.w / 2, y + s.h / 2 + Math.sin(t * 2) * 0.6);
@@ -177,6 +177,11 @@
     const spin = Math.abs(Math.sin(t * 40));
     ctx.beginPath(); ctx.ellipse(px + SHIP_PROP[0] * k, py + SHIP_PROP[1] * k, 1.2, 6.5 * spin + 1.5, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,236,190,.28)'; ctx.fill();
+    if (s.shieldT > 0) {                                // the steam shield: a shimmering bubble that fades
+      const a = Math.min(1, s.shieldT / 0.5), g = ctx.createRadialGradient(0, 0, 10, 0, 0, 34);
+      g.addColorStop(0, 'rgba(200,240,255,0)'); g.addColorStop(0.8, `rgba(170,225,255,${0.25 * a})`); g.addColorStop(1, `rgba(240,252,255,${0.7 * a})`);
+      ctx.beginPath(); ctx.ellipse(0, 0, 34, 26 + Math.sin(t * 12) * 0.8, 0, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+    }
     if (s.pet === 'parrot') {
       ctx.save(); ctx.translate(px + SHIP_BOWSPRIT[0] * k, py + SHIP_BOWSPRIT[1] * k - 2.4 + Math.sin(t * 5) * 0.4); ctx.scale(0.7, 0.7);
       art.drawParrot(ctx, 0, 0, t); ctx.restore();
@@ -386,7 +391,30 @@
   };
 
   const GUN_LETTER = { chain: 'C', harpoon: 'H', rockets: 'R', gatling: 'G' };
+  // The wingman: a pirate gyrocopter (the navy's, repainted rust-red) facing the way you fly.
+  art.drawWingman = (ctx, wg, t) => {
+    const im = art.tinted('navy-gyro', '#b8452e', 'color');
+    if (!im) return;
+    ctx.save(); ctx.translate(wg.x + 8, wg.y + 7); ctx.scale(-0.8, 0.8);
+    ctx.drawImage(im, -GYRO.ax, -GYRO.ay, GYRO.w, GYRO.h);
+    const r = 10 * Math.abs(Math.cos(t * 30));
+    ctx.beginPath(); ctx.ellipse(0, -8.4, r + 1.2, 1, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(36,30,34,.72)'; ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#16141a'; ctx.beginPath(); ctx.moveTo(wg.x + 6, wg.y - 3); ctx.lineTo(wg.x + 12, wg.y - 1); ctx.lineTo(wg.x + 6, wg.y + 1); ctx.fill();   // a little black flag
+  };
+
   art.drawPickup = (ctx, k, t) => {
+    if (k.type === 'chest') {                           // a treasure chest, lid open, gold glinting
+      const x = k.x - 1, y = k.y + 1 + Math.sin(t * 4) * 1;
+      const wg = ctx.createLinearGradient(x, y, x, y + 9); wg.addColorStop(0, '#b4783e'); wg.addColorStop(1, '#5c3418');
+      ctx.beginPath(); ctx.rect(x, y + 3, 12, 7); ctx.fillStyle = wg; ctx.fill(); outline(ctx, 0.7);
+      ctx.beginPath(); ctx.moveTo(x, y + 3); ctx.lineTo(x + 1.5, y - 2); ctx.lineTo(x + 10.5, y - 2); ctx.lineTo(x + 12, y + 3); ctx.closePath(); ctx.fillStyle = '#8a5230'; ctx.fill(); outline(ctx, 0.7);
+      const gg = ctx.createRadialGradient(x + 5, y + 2, 0, x + 6, y + 3, 5); gg.addColorStop(0, '#fff6c0'); gg.addColorStop(1, '#d9a441');
+      ctx.beginPath(); ctx.ellipse(x + 6, y + 3.2, 5, 1.6, 0, 0, Math.PI * 2); ctx.fillStyle = gg; ctx.fill();
+      ctx.fillStyle = BRASS; ctx.fillRect(x + 5, y + 4.5, 2, 3); ctx.fillRect(x, y + 3, 1.2, 7); ctx.fillRect(x + 10.8, y + 3, 1.2, 7);
+      if ((t * 1.5 + k.x * 0.05) % 1 < 0.15) { ctx.strokeStyle = '#fffbe8'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(x + 9, y - 4); ctx.lineTo(x + 9, y); ctx.moveTo(x + 7, y - 2); ctx.lineTo(x + 11, y - 2); ctx.stroke(); }
+      return;
+    }
     if (k.type === 'weapon') {
       const bob = Math.sin(t * 4) * 1.5;
       ctx.beginPath(); ctx.moveTo(k.x + 5, k.y - 6 + bob); ctx.lineTo(k.x + 5, k.y + 1 + bob); ctx.strokeStyle = INK; ctx.lineWidth = 0.6; ctx.stroke();
@@ -583,7 +611,7 @@
     ctx.save(); ctx.translate(24, 62); ctx.scale(2.4, 2.4); art.drawShip(ctx, preview, 0, Math.sin(t * 1.4) * 1.5, t); ctx.restore();
     ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(70, 118); ctx.lineTo(70, 200); ctx.stroke();
     art.text(ctx, 'THE HANGAR', W() / 2 + 60, 16, { size: 13, color: '#ffd34e', align: 'center' });
-    art.text(ctx, `${profile.gold} GOLD`, W() - 8, 30, { size: 8, color: '#ffd34e', align: 'right' });
+    art.text(ctx, `${profile.gold} GOLD`, W() - 8, 27, { size: 8, color: '#ffd34e', align: 'right' });
     panel(ctx, L.labelX - 10, L.top - 10, W() - L.labelX + 4, CD.CATALOG.length * L.step + 12);
     CD.CATALOG.forEach((r, i) => {
       const y = L.top + i * L.step, sel = i === h.row, o = r.options.find(o => o.id === h.view[r.key]), own = CD.owns(profile, r.key, o.id);
@@ -595,7 +623,7 @@
     });
     const sel = CD.CATALOG[h.row], o = sel.options.find(o => o.id === h.view[sel.key]);
     const note = h.msgT > 0 ? h.msg : o.note || (CD.owns(profile, sel.key, o.id) ? '' : `BUY FOR ${o.price} GOLD`);
-    if (note) art.text(ctx, note, W() / 2 + 60, 182, { size: 7, color: h.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
+    if (note) art.text(ctx, note, W() / 2 + 60, 188, { size: 7, color: h.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
     if (document.documentElement.classList.contains('touch')) { art.button(ctx, L.buy, 'BUY', !CD.owns(profile, sel.key, o.id)); art.button(ctx, L.done, 'DONE'); }
     else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: DONE' : 'ARROWS: CHOOSE   SPACE: BUY   ENTER: DONE', W() / 2 + 60, 204, { size: 6.5, color: '#d9c4a0', align: 'center' });
   };
@@ -608,16 +636,17 @@
     art.text(ctx, `HEARTS ${s.hearts}/${s.maxHearts}   LIVES ${s.lives}`, 54, 42, { size: 7, color: '#ffb0a8' });
     art.text(ctx, `${w.gold} GOLD`, W() - 54, 42, { size: 7, color: '#ffd34e', align: 'right' });
     m.rows().forEach((it, i) => {
-      const y = L.top + i * L.step, sel = i === m.row;
-      if (sel) { ctx.fillStyle = 'rgba(217,164,65,.22)'; ctx.fillRect(48, y - 6, W() - 96, 12); }
+      const col = i >= L.per ? 1 : 0, x0 = col ? L.col : 54, x1 = col ? W() - 54 : L.col - 14;
+      const y = L.top + (i % L.per) * L.step, sel = i === m.row;
+      if (sel) { ctx.fillStyle = 'rgba(217,164,65,.22)'; ctx.fillRect(x0 - 6, y - 6, x1 - x0 + 12, 12); }
       const name = it.id === 'gun' ? `GUN: ${sel ? '< ' : ''}${CD.WEAPONS[m.gun()].name}${sel ? ' >' : ''}` : it.name;
-      art.text(ctx, (sel ? '> ' : '  ') + name, 54, y, { size: 7, color: sel ? '#ffd34e' : '#f1e6cc' });
-      if (it.id !== 'leave') { const c = m.price(it.id); art.text(ctx, c + 'G', W() - 54, y, { size: 7, color: w.gold >= c ? '#7cfc7c' : '#ff8a7a', align: 'right' }); }
+      art.text(ctx, (sel ? '> ' : '') + name, x0, y, { size: 6.5, color: sel ? '#ffd34e' : '#f1e6cc' });
+      if (it.id !== 'leave') { const c = m.price(it.id); art.text(ctx, c + 'G', x1, y, { size: 6.5, color: w.gold >= c ? '#7cfc7c' : '#ff8a7a', align: 'right' }); }
     });
     const cur = m.current();
     art.text(ctx, m.msgT > 0 ? m.msg : cur.note, W() / 2, touch ? 184 : 188, { size: 7, color: m.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
     if (touch) { art.button(ctx, L.buy, 'BUY'); art.button(ctx, L.sail, 'CAST OFF'); }
-    else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: CAST OFF' : 'UP/DOWN: CHOOSE   SPACE: BUY   ENTER: CAST OFF', W() / 2, 200, { size: 6.5, color: '#d9c4a0', align: 'center' });
+    else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: CAST OFF' : 'ARROWS: CHOOSE   SPACE: BUY   ENTER: CAST OFF', W() / 2, 200, { size: 6.5, color: '#d9c4a0', align: 'center' });
   };
 
   // ---------- HUD ----------
@@ -648,7 +677,7 @@
     ctx.fillStyle = '#ffd34e'; ctx.fillRect(gx + gw * CD.DASH_COST / (s.steamMax || CD.STEAM_MAX), gy - 1, 1, 6);
     art.text(ctx, 'STEAM', gx + gw + 4, 20, { size: 6, color: '#cfe8ff' });
     const gun = CD.WEAPONS ? CD.WEAPONS[s.weapon || 'cannon'] : null;
-    if (gun) art.text(ctx, s.weaponT > 0 && s.weapon !== 'cannon' ? `${gun.name} ${Math.ceil(s.weaponT)}` : gun.name, L, 31, { size: 6.5, color: s.weaponT > 0 && s.weapon !== 'cannon' ? '#ffd34e' : '#cfe8ff' });
+    if (gun) art.text(ctx, s.weaponT > 0 && s.weapon !== 'cannon' ? (s.gunRack ? gun.name : `${gun.name} ${Math.ceil(s.weaponT)}`) : gun.name, L, 31, { size: 6.5, color: s.weaponT > 0 && s.weapon !== 'cannon' ? '#ffd34e' : '#cfe8ff' });
     art.text(ctx, String(w.score).padStart(6, '0'), R, 9, { size: 9, align: 'right' });
     art.text(ctx, `GOLD ${w.gold}`, R, 20, { size: 7, align: 'right', color: '#ffd34e' });
     if (best) art.text(ctx, `BEST ${best}`, R, 30, { size: 6, align: 'right', color: '#cfe8ff' });
