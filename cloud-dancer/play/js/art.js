@@ -1,155 +1,191 @@
-// Drawing: everything is code-drawn cartoon art (canvas shapes with a dark outline), in game units.
-// The game sets the context scale; positions passed in are already interpolated.
+// Drawing, in game units. The airship, navy, bosses and scenery are painted sprites (tools/paint_*.py,
+// tools/ship_sprite.py, packed into js/sprites.js); moving parts, shots, gold, effects and the HUD
+// are drawn here with shaded canvas shapes under a dark ink outline. The game sets the context
+// scale; positions passed in are already interpolated.
 (() => {
   const CD = window.CD;
   const art = (CD.art = {});
   const INK = '#2a1a12';
   const W = () => CD.VIEW_W, H = () => CD.VIEW_H;
 
-  const BRASS = '#d9a441', BRASS_D = '#9a6a24', WOOD = '#8a5230', WOOD_D = '#5c3418', CANVAS = '#f1e6cc', CANVAS_D = '#d6c7a4';
+  const BRASS = '#d9a441';
 
   function outline(ctx, w = 1.2) { ctx.lineWidth = w; ctx.strokeStyle = INK; ctx.stroke(); }
   function ellipse(ctx, x, y, rx, ry, fill, line = 1.2) {
     ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); if (line) outline(ctx, line);
   }
 
-  // ---------- sky: three bands, far to near ----------
+  // ---------- sky ----------
 
-  const cloud = (ctx, x, y, s, col = '#ffffff', shade = '#dfe9f3') => {
-    const blobs = [[0, 0, 14], [14, -6, 12], [28, 0, 13], [10, 6, 12], [22, 6, 11]];
-    for (const [dx, dy, r] of blobs) { ctx.beginPath(); ctx.arc(x + dx * s, y + dy * s + 2 * s, r * s, 0, 7); ctx.fillStyle = shade; ctx.fill(); }
-    for (const [dx, dy, r] of blobs) { ctx.beginPath(); ctx.arc(x + dx * s, y + dy * s, r * s, 0, 7); ctx.fillStyle = col; ctx.fill(); }
-  };
   const wrap = (x, span, pad = 0) => ((x % span) + span) % span - pad;
 
-  // Sky colours per area: high sky, mid, horizon, sea top, sea bottom.
-  const SKIES = {
-    reef: ['#2f7fd6', '#8fd0f7', '#cfeeff', '#4fb7d6', '#1d6aa0'],
-    storm: ['#3a4660', '#6c7a92', '#9aa6b8', '#46667e', '#24384c'],
-    forts: ['#e07a4a', '#f6b26b', '#ffe0a8', '#4f9fc2', '#1f5d8c'],
-    ceiling: ['#1b2a6b', '#4a5fb0', '#9fb4ea', '#3e86b8', '#1a4a7a'],
+  // A sprite as a white silhouette, for the hit flash.
+  art.flashed = k => {
+    const key = 'flash:' + k, src = art.sprite(k);
+    if (!src) return null;
+    if (!tints.has(key)) {
+      const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+      const g = c.getContext('2d'); g.drawImage(src, 0, 0);
+      g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(255,255,255,.65)'; g.fillRect(0, 0, c.width, c.height);
+      tints.set(key, c);
+    }
+    return tints.get(key);
   };
+
+  // Painted scenery (tools/paint_sky.py) is 3 px per game unit; wide layers tile sideways.
+  const PX = 3;
+  function tileX(ctx, im, offset) {
+    const tw = im.width / PX, th = im.height / PX;
+    for (let x = wrap(offset, tw) - tw; x < W(); x += tw) ctx.drawImage(im, x, 0, tw, th);
+  }
+  // A painted cumulus, `w` units wide, centred on x, y.
+  function cumulus(ctx, i, x, y, w, alpha = 1, tint = null) {
+    if (tint && tint.length < 8 && !tint.startsWith('#')) tint = CLOUD_TINT[tint] || null;   // an area name
+    const name = 'cloud-' + (1 + (Math.abs(Math.round(i)) % 4)), im = tint ? art.tinted(name, tint) : art.sprite(name);
+    if (!im) return;
+    const h = w * im.height / im.width;
+    ctx.globalAlpha = alpha; ctx.drawImage(im, x - w / 2, y - h / 2, w, h); ctx.globalAlpha = 1;
+  }
+  // Cumulus sprites are painted white; each area tints them (multiply).
+  const CLOUD_TINT = { storm: '#9ea8ba', forts: '#ffd4bf', ceiling: '#e2e8ff' };
+  const painted = area => art.sprite('sky-' + area) && art.sprite('far-' + area) && art.sprite('band-' + area) && art.sprite('cloud-4');
+
   art.drawSky = (ctx, dist, t, area = 'reef') => {
-    // high sky to the sea far below
-    const c = SKIES[area] || SKIES.reef;
-    const g = ctx.createLinearGradient(0, 0, 0, H());
-    g.addColorStop(0, c[0]); g.addColorStop(0.42, c[1]); g.addColorStop(0.62, c[2]);
-    g.addColorStop(0.63, c[3]); g.addColorStop(1, c[4]);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W(), H());
-    // far islands on the sea below
-    for (let i = 0; i < 3; i++) {
-      const x = wrap(i * 180 + 60 - dist * 0.08, 540, 80), y = H() * 0.66 + i * 6;
-      ctx.beginPath(); ctx.ellipse(x, y + 4, 34 - i * 6, 7, 0, Math.PI, 0); ctx.fillStyle = '#3f8f5a'; ctx.fill();
-      ctx.beginPath(); ctx.ellipse(x, y + 4, 38 - i * 6, 3, 0, 0, Math.PI * 2); ctx.fillStyle = '#e8d49a'; ctx.fill();
+    if (painted(area)) {
+      ctx.drawImage(art.sprite('sky-' + area), 0, 0, W(), H());
+      for (let i = 0; i < 4; i++) cumulus(ctx, i + 2, wrap(i * 150 + 40 - dist * 0.12, 600, 60), 22 + (i % 2) * 20, 46, 0.75, area);   // high, small
+      if (art.sprite('isles-' + area)) tileX(ctx, art.sprite('isles-' + area), -dist * 0.1);
+      tileX(ctx, art.sprite('band-' + area), -dist * 0.05);
+      tileX(ctx, art.sprite('far-' + area), -dist * 0.08);
+      for (let i = 0; i < 5; i++) cumulus(ctx, i, wrap(i * 120 - dist * 0.3, 600, 70), 112 + (i % 2) * 12, 74 + (i % 3) * 12, 0.95, area);   // behind the ship
+      return;
     }
-    // sparkles on the sea
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    for (let i = 0; i < 18; i++) {
-      const x = wrap(i * 47 - dist * 0.15 - t * 6, W() + 40, 20), y = H() * 0.7 + (i * 29) % 60;
-      ctx.fillRect(x, y, 6, 1);
-    }
-    // floating rocks of the Sky-Forts and the Ceiling, far off
-    if (area === 'forts' || area === 'ceiling') {
-      for (let i = 0; i < 3; i++) {
-        const x = wrap(i * 170 + 30 - dist * 0.12, 510, 60), y = 40 + i * 22;
-        ctx.beginPath(); ctx.moveTo(x - 22, y); ctx.lineTo(x + 22, y); ctx.lineTo(x + 8, y + 16); ctx.lineTo(x - 4, y + 22); ctx.lineTo(x - 14, y + 10); ctx.closePath();
-        ctx.fillStyle = area === 'forts' ? '#8a6a5a' : '#5a6488'; ctx.fill();
-        ctx.fillStyle = area === 'forts' ? '#6f9a52' : '#8a98c8'; ctx.fillRect(x - 22, y - 2, 44, 3);
-        if (area === 'forts') { ctx.fillStyle = '#9a8c80'; ctx.fillRect(x - 6, y - 12, 10, 10); ctx.fillRect(x - 8, y - 14, 3, 3); ctx.fillRect(x + 3, y - 14, 3, 3); }
-      }
-    }
-    // far cloud band (behind the ship)
-    const storm = area === 'storm';
-    for (let i = 0; i < 6; i++) cloud(ctx, wrap(i * 90 - dist * 0.3, 560, 70), 118 + (i % 2) * 12, 0.9 + (i % 3) * 0.15, storm ? '#aab4c4' : '#f7fbff', storm ? '#7c889c' : '#d5e4f2');
-    for (let i = 0; i < 4; i++) cloud(ctx, wrap(i * 140 + 40 - dist * 0.18, 560, 70), 30 + (i % 2) * 18, 0.6, 'rgba(255,255,255,.75)', 'rgba(210,228,245,.6)');
   };
 
   // Near clouds drift in front of everything.
-  art.drawNearClouds = (ctx, dist) => {
-    for (let i = 0; i < 2; i++) cloud(ctx, wrap(i * 300 + 120 - dist * 0.9, 700, 90), 150 + i * 40, 1.6, 'rgba(255,255,255,.82)', 'rgba(215,230,245,.7)');
+  art.drawNearClouds = (ctx, dist, area = 'reef', t = 0) => {
+    if (painted(area)) {
+      for (let i = 0; i < 2; i++) cumulus(ctx, i + 1, wrap(i * 300 + 120 - dist * 0.9, 700, 90), 160 + i * 40, 150, 0.8, area);
+      if (area === 'storm') {                             // rain, slanting, in front of everything
+        ctx.strokeStyle = 'rgba(200,214,232,.35)'; ctx.lineWidth = 0.6; ctx.beginPath();
+        for (let i = 0; i < 70; i++) {
+          const rx = wrap(i * 53 - dist * 1.4 - t * 20 * (1 + (i % 3) * 0.2), W() + 40, 20), ry = wrap(i * 37 + t * 250, H() + 20, 10);
+          ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 9);
+        }
+        ctx.stroke();
+      }
+      return;
+    }
   };
 
   // ---------- the Cloud Dancer ----------
 
-  // Hangar colours: envelope [main, shade], hull [main, dark], sail [cloth, mark].
-  const ENVELOPES = { cream: [CANVAS, CANVAS_D], red: ['#d24a3e', '#a33028'], navy: ['#3d5f9c', '#2a4474'], black: ['#4a4352', '#2e2a36'], gold: ['#ecc256', '#c0922e'] };
-  const HULLS = { oak: [WOOD, WOOD_D], ebony: ['#4a3630', '#2c1e1a'], crimson: ['#9a3030', '#6a1e1e'] };
-  const SAILS = { roger: ['#1d1a1f', '#f1e6cc'], swords: ['#1d1a1f', '#f1e6cc'], red: ['#b8322a', '#1d1a1f'] };
+  // The player's airship is the painted ship from the app icon (assets/sprites, packed into
+  // js/sprites.js). Hangar looks recolour it through three masks (envelope, hull, flag); each look
+  // is painted once onto its own canvas and kept.
+  const SHIP_PX = [360, 322];          // sprite size in pixels
+  const SHIP_K = 48 / 360;             // game units per sprite pixel: about 48 units wide
+  const SHIP_BODY = [185, 190];        // sprite pixel at the centre of the hitbox
+  const SHIP_BOWSPRIT = [350, 136];    // where the parrot perches
+  const SHIP_PROP = [22, 255];         // the stern propeller's hub
+  // Envelope [colour, mode], hull, flag. Multiply keeps the painted shading under the new colour.
+  const ENVELOPES = { red: '#e8695c', navy: '#5f8ae6', black: '#6a6474', gold: '#ffd77a' };
+  // Hull wood is dark, so ebony darkens it further and crimson swaps its hue but keeps its grain.
+  const HULLS = { ebony: [['#808080', 'saturation'], ['#8a8490', 'multiply']], crimson: [['#c8281e', 'color']] };
+  const img = {};
+  const loaded = k => img[k] && img[k].complete && img[k].naturalWidth > 0;
+  art.spritesReady = () => {
+    if (!CD.SPRITE_SRC || typeof Image === 'undefined') return false;
+    if (!img.ship) for (const [k, src] of Object.entries(CD.SPRITE_SRC)) { img[k] = new Image(); img[k].src = src; }
+    return ['ship', 'ship-envelope', 'ship-hull', 'ship-flag'].every(loaded);
+  };
+  // A painted sprite by name, or null until it has loaded (callers fall back or skip).
+  art.sprite = k => (art.spritesReady() || img.ship) && loaded(k) ? img[k] : null;
+  // A sprite multiplied by a colour (storm grey, ink), painted once and kept.
+  const tints = new Map();
+  art.tinted = (k, colour) => {
+    const key = k + colour, src = art.sprite(k);
+    if (!src) return null;
+    if (!tints.has(key)) {
+      const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+      const g = c.getContext('2d');
+      g.drawImage(src, 0, 0); g.globalCompositeOperation = 'multiply'; g.fillStyle = colour; g.fillRect(0, 0, c.width, c.height);
+      g.globalCompositeOperation = 'destination-in'; g.drawImage(src, 0, 0);
+      tints.set(key, c);
+    }
+    return tints.get(key);
+  };
+  const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  // Paint `fill` (a colour or a function drawing onto the layer) through a mask onto g with `mode`.
+  function tint(g, mask, fill, mode) {
+    const layer = canvas(SHIP_PX[0], SHIP_PX[1]), l = layer.getContext('2d');
+    if (typeof fill === 'function') fill(l); else { l.fillStyle = fill; l.fillRect(0, 0, SHIP_PX[0], SHIP_PX[1]); }
+    l.globalCompositeOperation = 'destination-in'; l.drawImage(mask, 0, 0);
+    g.globalCompositeOperation = mode; g.drawImage(layer, 0, 0); g.globalCompositeOperation = 'source-over';
+  }
+  const looks = new Map();
+  function shipLook(look) {
+    const key = [look.envelope, look.pattern, look.hull, look.sail].join();
+    if (looks.has(key)) return looks.get(key);
+    const c = canvas(SHIP_PX[0], SHIP_PX[1]), g = c.getContext('2d');
+    g.drawImage(img.ship, 0, 0);
+    if (ENVELOPES[look.envelope]) tint(g, img['ship-envelope'], ENVELOPES[look.envelope], 'multiply');
+    if (look.pattern === 'stripes' || look.pattern === 'checker') {
+      tint(g, img['ship-envelope'], l => {
+        l.fillStyle = 'rgba(60,30,24,.6)';
+        for (let x = 0; x < SHIP_PX[0]; x += 44) {
+          if (look.pattern === 'stripes') l.fillRect(x, 0, 22, SHIP_PX[1]);
+          else for (let y = (x / 44) % 2 ? 22 : 0; y < SHIP_PX[1]; y += 44) l.fillRect(x, y, 22, 22);
+        }
+      }, 'multiply');
+    }
+    for (const [colour, mode] of HULLS[look.hull] || []) tint(g, img['ship-hull'], colour, mode);
+    if (look.sail === 'red') tint(g, img['ship-flag'], '#c23a30', 'screen');
+    if (look.sail === 'swords') {
+      // Calico Jack's flag: the skull stays, crossed cutlasses replace the bones.
+      g.save(); g.translate(158, 48);
+      g.fillStyle = '#18161b'; g.beginPath(); g.ellipse(0, 0, 21, 9, 0, 0, Math.PI * 2); g.fill();
+      g.lineCap = 'round';
+      for (const d of [1, -1]) {
+        // a curved silver blade from the hilt at the bottom corner up across the flag
+        g.strokeStyle = '#e4e8ee'; g.lineWidth = 3.2;
+        g.beginPath(); g.moveTo(-14 * d, 9); g.quadraticCurveTo(2 * d, 4, 24 * d, -12); g.stroke();
+        g.strokeStyle = '#f2b532'; g.lineWidth = 3.4;
+        g.beginPath(); g.moveTo(-21 * d, 13); g.lineTo(-15 * d, 9.5); g.stroke();          // grip
+        g.beginPath(); g.moveTo(-17 * d, 4); g.lineTo(-12 * d, 15); g.stroke();             // guard
+      }
+      g.restore();
+    }
+    looks.set(key, c);
+    return c;
+  }
 
   art.drawShip = (ctx, s, x, y, t) => {
     if (s.inv > 0 && !s.dash && Math.floor(t * 20) % 2) return;
-    const look = s.look || {}, env = ENVELOPES[look.envelope] || ENVELOPES.cream, hull = HULLS[look.hull] || HULLS.oak, sail = SAILS[look.sail] || SAILS.roger;
+    if (!art.spritesReady()) return;
     ctx.save();
-    ctx.translate(x + s.w / 2, y + s.h / 2);
+    ctx.translate(x + s.w / 2, y + s.h / 2 + Math.sin(t * 2) * 0.6);
     ctx.rotate(s.tilt);
-    const sway = Math.sin(t * 2) * 0.8;
     // steam trail while dashing
     if (s.dash > 0) {
-      for (let i = 0; i < 6; i++) ellipse(ctx, -22 - i * 7, 4 + Math.sin(t * 30 + i) * 2, 5 - i * 0.5, 4 - i * 0.4, `rgba(255,255,255,${0.8 - i * 0.12})`, 0);
+      for (let i = 0; i < 7; i++) ellipse(ctx, -26 - i * 7, 8 + Math.sin(t * 30 + i) * 2, 6 - i * 0.6, 5 - i * 0.5, `rgba(255,255,255,${0.8 - i * 0.1})`, 0);
     }
-    // gas envelope with brass ribs
-    ctx.save(); ctx.translate(0, -5 + sway * 0.3);
-    ellipse(ctx, 0, 0, 19, 7.5, env[0]);
-    if (look.pattern === 'stripes' || look.pattern === 'checker') {
-      ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0, 19, 7.5, 0, 0, Math.PI * 2); ctx.clip(); ctx.fillStyle = env[1];
-      for (let i = -19; i < 19; i += 6) {
-        if (look.pattern === 'stripes') ctx.fillRect(i, -8, 3, 16);
-        else for (let j = -8; j < 8; j += 6) if (((i + 19) / 6 + (j + 8) / 6) % 2 < 1) ctx.fillRect(i, j, 3, 3);
-      }
-      ctx.restore();
-    }
-    ctx.beginPath(); ctx.ellipse(0, 2.5, 17, 4, 0, 0, Math.PI); ctx.fillStyle = env[1]; ctx.globalAlpha *= 0.7; ctx.fill(); ctx.globalAlpha /= 0.7;
-    ctx.strokeStyle = BRASS_D; ctx.lineWidth = 1;
-    for (const rx of [-11, -4, 4, 11]) { ctx.beginPath(); ctx.ellipse(rx, 0, 1.6, Math.sqrt(1 - (rx / 19) ** 2) * 7.5, 0, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.beginPath(); ctx.moveTo(-19, 0); ctx.lineTo(19, 0); ctx.stroke();
-    ellipse(ctx, 0, 0, 19, 7.5, 'rgba(0,0,0,0)');
-    // tail fin
-    ctx.beginPath(); ctx.moveTo(-17, -2); ctx.lineTo(-24, -7); ctx.lineTo(-22, 0); ctx.lineTo(-24, 6); ctx.lineTo(-17, 2); ctx.closePath();
-    ctx.fillStyle = BRASS; ctx.fill(); outline(ctx);
-    ctx.restore();
-    // rigging
-    ctx.strokeStyle = INK; ctx.lineWidth = 0.5;
-    for (const rx of [-10, 0, 10]) { ctx.beginPath(); ctx.moveTo(rx, 1); ctx.lineTo(rx * 0.8, 6); ctx.stroke(); }
-    // hull
-    ctx.beginPath();
-    ctx.moveTo(-15, 5); ctx.lineTo(13, 5); ctx.quadraticCurveTo(17, 5, 19, 3); ctx.lineTo(17, 9);
-    ctx.quadraticCurveTo(8, 13, -11, 12); ctx.quadraticCurveTo(-15, 10, -15, 5); ctx.closePath();
-    ctx.fillStyle = hull[0]; ctx.fill(); outline(ctx);
-    ctx.beginPath(); ctx.moveTo(-14, 8); ctx.lineTo(16, 7); ctx.strokeStyle = hull[1]; ctx.lineWidth = 0.8; ctx.stroke();
-    ctx.fillStyle = BRASS; for (const px of [-7, 0, 7]) { ctx.beginPath(); ctx.arc(px, 9, 1.2, 0, 7); ctx.fill(); }
-    // bowsprit + cannon
-    ctx.beginPath(); ctx.moveTo(17, 5); ctx.lineTo(25, 1); ctx.strokeStyle = WOOD_D; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = '#3a3a44'; ctx.fillRect(15, 6.5, 6, 2.4);
-    // black sail with a skull on a short mast
-    ctx.beginPath(); ctx.moveTo(2, 5); ctx.lineTo(2, -14); ctx.strokeStyle = WOOD_D; ctx.lineWidth = 1.2; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-6, -12); ctx.quadraticCurveTo(-3 + sway, -6, -6, 1); ctx.lineTo(1, 1); ctx.lineTo(1, -12); ctx.closePath();
-    ctx.fillStyle = sail[0]; ctx.fill(); outline(ctx, 0.8);
-    if (look.sail === 'swords') {
-      ctx.strokeStyle = sail[1]; ctx.lineWidth = 0.7;
-      ctx.beginPath(); ctx.moveTo(-5, -10); ctx.lineTo(0, -2); ctx.moveTo(0, -10); ctx.lineTo(-5, -2); ctx.stroke();
-    } else {
-      ellipse(ctx, -2.6, -6.5, 1.7, 1.5, sail[1], 0);
-      ctx.fillStyle = sail[1]; ctx.fillRect(-3.4, -5.2, 1.6, 1);
-    }
-    // flag
-    ctx.beginPath(); ctx.moveTo(2, -14); ctx.lineTo(9, -13 + Math.sin(t * 9) * 1.2); ctx.lineTo(2, -11); ctx.fillStyle = '#1d1a1f'; ctx.fill();
-    // stern propeller, spinning
-    ctx.fillStyle = BRASS; ctx.fillRect(-19, 6, 4, 3);
+    const k = SHIP_K, px = -SHIP_BODY[0] * k, py = -SHIP_BODY[1] * k;
+    ctx.drawImage(shipLook(s.look || {}), px, py, SHIP_PX[0] * k, SHIP_PX[1] * k);
+    // the stern propeller's blur, turning
     const spin = Math.abs(Math.sin(t * 40));
-    ctx.beginPath(); ctx.ellipse(-20, 7.5, 1.4, 6 * spin + 1, 0, 0, Math.PI * 2); ctx.fillStyle = '#b5743a'; ctx.fill(); outline(ctx, 0.8);
-    if (s.pet === 'parrot') art.drawParrot(ctx, 23, -1 + Math.sin(t * 5) * 0.6, t);   // perched on the bowsprit
+    ctx.beginPath(); ctx.ellipse(px + SHIP_PROP[0] * k, py + SHIP_PROP[1] * k, 1.2, 6.5 * spin + 1.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,236,190,.28)'; ctx.fill();
+    if (s.pet === 'parrot') {
+      ctx.save(); ctx.translate(px + SHIP_BOWSPRIT[0] * k, py + SHIP_BOWSPRIT[1] * k - 2.4 + Math.sin(t * 5) * 0.4); ctx.scale(0.7, 0.7);
+      art.drawParrot(ctx, 0, 0, t); ctx.restore();
+    }
     ctx.restore();
   };
 
   art.drawParrot = (ctx, x, y, t) => {
-    ctx.save(); ctx.translate(x, y);
-    ellipse(ctx, 0, 0, 2.6, 3.4, '#2fa84f', 0.7);
-    ellipse(ctx, 0.6, -3.6, 2, 2, '#e04848', 0.7);
-    ctx.beginPath(); ctx.moveTo(2.3, -3.8); ctx.lineTo(4.2, -3); ctx.lineTo(2.3, -2.6); ctx.fillStyle = '#ffd34e'; ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.fillRect(0.9, -4.4, 0.8, 0.8);
-    const flap = Math.sin(t * 12) > 0.6 ? -2 : 0;
-    ctx.beginPath(); ctx.moveTo(-1, -1); ctx.lineTo(-3.5, 1 + flap); ctx.lineTo(-0.5, 1.5); ctx.fillStyle = '#3c6fd0'; ctx.fill();
-    ctx.restore();
+    const frame = art.sprite(Math.sin(t * 12) > 0.6 ? 'parrot-2' : 'parrot-1');
+    if (frame) { ctx.drawImage(frame, x - 5.6, y - 7.6, 12, 13); return; }
   };
 
   // ---------- the King's Aerial Navy ----------
@@ -164,132 +200,128 @@
     return art.drawGyro(ctx, e, x, y, t);
   };
 
+  // Painted navy sprites (tools/paint_navy.py) face left; sizes and anchors in game units.
+  const GYRO = { w: 32, h: 24, ax: 15, ay: 14 }, ZEP = { w: 96, h: 40, ax: 50, ay: 14 }, MINE = { w: 18, h: 30, ax: 9, ay: 20 };
+  const FLAK = { w: 50, h: 30, ax: 25, ay: 0 }, PIKE = { w: 36, h: 18, ax: 18, ay: 9 }, LURK = { w: 30, h: 26, ax: 15, ay: 15 };
+  // Draw a painted sprite (or its white flash) with its anchor at x, y; `d` = { w, h, ax, ay }.
+  const put = (ctx, k, d, x, y, flash = false) => {
+    const im = flash ? art.flashed(k) : art.sprite(k);
+    if (im) ctx.drawImage(im, x - d.ax, y - d.ay, d.w, d.h);
+    return !!im;
+  };
+  // A shaded gun barrel from (0,0) along +x, `len` long, in the current transform.
+  const barrel = (ctx, len, r) => {
+    const g = ctx.createLinearGradient(0, -r, 0, r);
+    g.addColorStop(0, '#a8acb8'); g.addColorStop(0.45, '#4a4c58'); g.addColorStop(1, '#16161c');
+    ctx.beginPath(); ctx.roundRect(0, -r, len, r * 2, r * 0.4); ctx.fillStyle = g; ctx.fill(); outline(ctx, 0.5);
+  };
+  // A ball of brass (a tentacle segment, a turret dome), lit from the upper left.
+  const brassBall = (ctx, x, y, rx, ry = rx, flash = false) => {
+    const g = ctx.createRadialGradient(x - rx * 0.4, y - ry * 0.45, Math.min(rx, ry) * 0.1, x, y, Math.max(rx, ry));
+    g.addColorStop(0, flash ? '#fff' : '#fff0b0'); g.addColorStop(0.4, flash ? '#fff' : '#d9a441'); g.addColorStop(1, flash ? '#ddd' : '#6a3e12');
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill(); outline(ctx, 0.6);
+  };
+  // A glowing eye or orb.
+  const glow = (ctx, x, y, r, core, halo) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.3, core); g.addColorStop(0.55, halo); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  };
+
   art.drawGyro = (ctx, e, x, y, t) => {
-    ctx.save(); ctx.translate(x + e.w / 2, y + e.h / 2);
-    const white = e.flash > 0;
-    // body: navy-blue pod with a red, white and blue roundel
-    ellipse(ctx, 0, 1, 8, 4.5, white ? '#fff' : '#2c4f8c');
-    ellipse(ctx, -2, 1, 2.2, 2.2, white ? '#fff' : '#fff', 0.6);
-    ellipse(ctx, -2, 1, 1.2, 1.2, white ? '#fff' : '#c8323a', 0);
-    // cockpit and tail
-    ellipse(ctx, 4, -0.5, 2.5, 2, '#9fd6f2', 0.6);
-    ctx.beginPath(); ctx.moveTo(7, 1); ctx.lineTo(10, -2); ctx.lineTo(10, 3); ctx.closePath(); ctx.fillStyle = white ? '#fff' : '#2c4f8c'; ctx.fill(); outline(ctx, 0.8);
-    // rotor
-    ctx.strokeStyle = INK; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(0, -3.5); ctx.lineTo(0, -6); ctx.stroke();
-    const r = 9 * Math.abs(Math.cos(t * 30));
-    ctx.beginPath(); ctx.ellipse(0, -6, r + 1, 1, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(60,60,70,.75)'; ctx.fill();
-    ctx.restore();
+    const im = art.sprite('navy-gyro');
+    if (im) {
+      const cx = x + e.w / 2, cy = y + e.h / 2;
+      ctx.drawImage(e.flash > 0 ? art.flashed('navy-gyro') : im, cx - GYRO.ax, cy - GYRO.ay, GYRO.w, GYRO.h);
+      const r = 10 * Math.abs(Math.cos(t * 30));                     // rotor blur
+      ctx.beginPath(); ctx.ellipse(cx, cy - 8.4, r + 1.2, 1, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(36,30,34,.72)'; ctx.fill();
+      return;
+    }
   };
 
   // A navy zeppelin: long grey-blue envelope with a roundel, a gondola with a gun deck, twin
   // propellers. `fire` (0-1) flashes the gun ports.
   art.drawZeppelin = (ctx, x, y, t, { flash = false, fire = 0, flip = true } = {}) => {
-    ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1);
-    const body = flash ? '#ffffff' : '#7d8ea6', shade = flash ? '#ffffff' : '#5e6f88';
-    // envelope
-    ellipse(ctx, 0, 0, 38, 12, body);
-    ctx.beginPath(); ctx.ellipse(0, 4, 35, 6.5, 0, 0, Math.PI); ctx.fillStyle = shade; ctx.fill();
-    ctx.strokeStyle = shade; ctx.lineWidth = 0.8;
-    for (const rx of [-24, -12, 0, 12, 24]) { ctx.beginPath(); ctx.ellipse(rx, 0, 2, Math.sqrt(1 - (rx / 38) ** 2) * 12, 0, 0, Math.PI * 2); ctx.stroke(); }
-    ellipse(ctx, 0, 0, 38, 12, 'rgba(0,0,0,0)');
-    // tail fins
-    for (const dy of [-1, 1]) {
-      ctx.beginPath(); ctx.moveTo(-32, dy * 4); ctx.lineTo(-44, dy * 13); ctx.lineTo(-41, dy * 2); ctx.closePath();
-      ctx.fillStyle = flash ? '#fff' : '#2c4f8c'; ctx.fill(); outline(ctx, 0.9);
+    const im = art.sprite('navy-zeppelin');
+    if (im) {
+      ctx.save(); ctx.translate(x, y); if (!flip) ctx.scale(-1, 1);
+      ctx.drawImage(flash ? art.flashed('navy-zeppelin') : im, -ZEP.ax, -ZEP.ay, ZEP.w, ZEP.h);
+      if (fire > 0) {                                                 // the gun deck firing
+        ctx.fillStyle = `rgba(255,211,78,${0.5 + fire * 0.5})`;
+        for (const gx of [-9, -2, 5]) ctx.fillRect(gx, 15, 4, 3);
+      }
+      for (const py of [-6, 6]) {                                     // stern propellers
+        const spin = Math.abs(Math.sin(t * 35 + py));
+        ctx.beginPath(); ctx.ellipse(41.6, py, 1, 6 * spin + 1, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(150,160,175,.8)'; ctx.fill();
+      }
+      ctx.restore();
+      return;
     }
-    // roundel
-    ellipse(ctx, 12, -2, 5, 5, '#2c4f8c', 0.8); ellipse(ctx, 12, -2, 3.3, 3.3, '#ffffff', 0); ellipse(ctx, 12, -2, 1.8, 1.8, '#c8323a', 0);
-    // gondola with gun ports
-    ctx.strokeStyle = INK; ctx.lineWidth = 0.6;
-    for (const gx of [-8, 8]) { ctx.beginPath(); ctx.moveTo(gx, 10); ctx.lineTo(gx * 0.8, 15); ctx.stroke(); }
-    ctx.beginPath(); ctx.roundRect(-14, 14, 28, 8, 3); ctx.fillStyle = flash ? '#fff' : '#4a3a2c'; ctx.fill(); outline(ctx, 0.9);
-    for (const gx of [-8, -1, 6]) {
-      ctx.fillStyle = fire > 0 ? '#ffd34e' : '#20180f'; ctx.fillRect(gx, 16.5, 4, 3);
-      ctx.fillStyle = '#3a3a44'; ctx.fillRect(gx + 1, 19.5, 2, 3);
-    }
-    // propellers
-    for (const py of [-6, 6]) {
-      ctx.fillStyle = BRASS; ctx.fillRect(-40, py - 1, 4, 2);
-      const spin = Math.abs(Math.sin(t * 35 + py));
-      ctx.beginPath(); ctx.ellipse(-41, py, 1, 5 * spin + 0.8, 0, 0, Math.PI * 2); ctx.fillStyle = '#9aa4b4'; ctx.fill(); outline(ctx, 0.6);
-    }
-    // navy pennant
-    ctx.beginPath(); ctx.moveTo(-20, -11); ctx.lineTo(-20, -19); ctx.strokeStyle = INK; ctx.lineWidth = 0.8; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-20, -19); ctx.lineTo(-13, -17.5 + Math.sin(t * 8)); ctx.lineTo(-20, -16); ctx.fillStyle = '#c8323a'; ctx.fill();
-    ctx.restore();
   };
 
   // A balloon mine: a striped balloon carrying a spiked sea mine with a blinking light.
   art.drawMine = (ctx, x, y, t) => {
-    ctx.save(); ctx.translate(x, y + Math.sin(t * 2 + x) * 2);
-    ellipse(ctx, 0, -12, 7, 8, '#c8323a');
-    ctx.save(); ctx.beginPath(); ctx.ellipse(0, -12, 7, 8, 0, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#f1e6cc'; ctx.fillRect(-2, -20, 4, 16); ctx.restore();
-    ellipse(ctx, 0, -12, 7, 8, 'rgba(0,0,0,0)');
-    ctx.strokeStyle = INK; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(0, 1); ctx.stroke();
-    for (let i = 0; i < 8; i++) {
-      const a = i * Math.PI / 4;
-      ctx.beginPath(); ctx.moveTo(Math.cos(a) * 4, 6 + Math.sin(a) * 4); ctx.lineTo(Math.cos(a) * 7, 6 + Math.sin(a) * 7);
-      ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.stroke();
+    const im = art.sprite('navy-mine');
+    if (im) {
+      const by = y + Math.sin(t * 2 + x) * 2;
+      ctx.drawImage(im, x - MINE.ax, by - MINE.ay, MINE.w, MINE.h);
+      ctx.beginPath(); ctx.arc(x, by + 6, 1.2, 0, Math.PI * 2);                  // the blinking fuse light
+      ctx.fillStyle = Math.floor(t * 4) % 2 ? '#ff4d4d' : '#5a1a1a'; ctx.fill();
+      return;
     }
-    ellipse(ctx, 0, 6, 5, 5, '#3a3a44');
-    ellipse(ctx, -1.5, 4.5, 1.2, 1.2, '#7a7a88', 0);
-    ellipse(ctx, 0, 6, 1.3, 1.3, Math.floor(t * 4) % 2 ? '#ff4d4d' : '#5a1a1a', 0);
-    ctx.restore();
   };
 
   // A cloud bank in the middle band: big enough to hide the Cloud Dancer in.
-  art.drawCloudBank = (ctx, x, y, w, t, alpha = 1, storm = false, ink = false) => {
-    ctx.save(); ctx.globalAlpha = alpha;
-    const n = Math.max(3, Math.round(w / 22));
-    for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < n; i++) {
-        const bx = x + (i + 0.5) * (w / n), r = 16 + ((i * 7) % 5) * 3 + Math.sin(t * 0.8 + i) * 1.5;
-        ctx.beginPath(); ctx.arc(bx, y + (pass ? 0 : 4) + ((i * 13) % 7) - 3, r, 0, 7);
-        ctx.fillStyle = ink ? (pass ? '#3a2c4a' : '#241a30') : storm ? (pass ? '#aab4c4' : '#7c889c') : (pass ? '#ffffff' : '#d5e4f2'); ctx.fill();
-      }
+  // `area` is an area id (or true for the storm), for the cloud's tint.
+  art.drawCloudBank = (ctx, x, y, w, t, alpha = 1, area = 'reef', ink = false, h = 44) => {
+    const name = 'cloud-' + (1 + (Math.round(w * 7) % 4)), tint = ink ? '#4a3a5c' : CLOUD_TINT[area === true ? 'storm' : area];
+    const storm = area === true || area === 'storm';
+    const im = tint ? art.tinted(name, tint) : art.sprite(name);
+    if (im) {
+      // The painted cloud's body fills about 80% of its width and 70% of its height.
+      const dw = w / 0.8, dh = Math.max(h / 0.7, dw * im.height / im.width * 0.75);
+      ctx.globalAlpha = alpha; ctx.drawImage(im, x + w / 2 - dw / 2, y - dh * 0.48 + Math.sin(t * 0.8 + w) * 1, dw, dh); ctx.globalAlpha = 1;
+      return;
     }
-    ctx.restore();
   };
 
   // A flak tower on a rocky islet far below: brass dome, gun pointing up.
   art.drawFlak = (ctx, x, y, t, flash) => {
-    ctx.save(); ctx.translate(x + 9, y);
-    ctx.beginPath(); ctx.ellipse(0, 22, 22, 6, 0, Math.PI, 0); ctx.fillStyle = '#3f8f5a'; ctx.fill(); outline(ctx, 0.8);
-    ctx.beginPath(); ctx.ellipse(0, 22, 24, 3, 0, 0, Math.PI * 2); ctx.fillStyle = '#e8d49a'; ctx.fill();
-    ctx.fillStyle = flash ? '#fff' : '#7c7466'; ctx.fillRect(-7, 6, 14, 12); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(-7, 6, 14, 12);
-    ctx.beginPath(); ctx.arc(0, 6, 7, Math.PI, 0); ctx.fillStyle = flash ? '#fff' : BRASS; ctx.fill(); outline(ctx);
-    ctx.save(); ctx.rotate(-0.5 + Math.sin(t * 1.5) * 0.3); ctx.fillStyle = '#3a3a44'; ctx.fillRect(-1.5, -9, 3, 12); ctx.restore();
-    ctx.restore();
+    if (art.sprite('navy-flak')) {
+      ctx.save(); ctx.translate(x + 9, y + 6); ctx.rotate(-Math.PI / 2 - 0.5 + Math.sin(t * 1.5) * 0.3); barrel(ctx, 13, 1.6); ctx.restore();
+      put(ctx, 'navy-flak', FLAK, x + 9, y, flash);
+      return;
+    }
   };
 
   // A sky pike: an armoured flying fish of the storm. `tell` = about to dart (eye glows, fins flare).
   art.drawPike = (ctx, x, y, t, flash, tell) => {
-    ctx.save(); ctx.translate(x + 11, y + 5);
-    const body = flash ? '#fff' : '#5a7a8c';
-    ctx.beginPath(); ctx.moveTo(-11, 0); ctx.quadraticCurveTo(-2, -7, 9, -1); ctx.lineTo(12, 0); ctx.lineTo(9, 1); ctx.quadraticCurveTo(-2, 7, -11, 0); ctx.closePath();
-    ctx.fillStyle = body; ctx.fill(); outline(ctx, 0.9);
-    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(16, -2); ctx.lineTo(16, 2); ctx.closePath(); ctx.fillStyle = BRASS; ctx.fill(); outline(ctx, 0.6);
-    const flap = Math.sin(t * (tell ? 40 : 14)) * (tell ? 5 : 3);
-    ctx.beginPath(); ctx.moveTo(-2, -3); ctx.lineTo(-6, -7 - flap); ctx.lineTo(2, -4); ctx.fillStyle = '#9fd6f2'; ctx.fill(); outline(ctx, 0.6);
-    ctx.beginPath(); ctx.moveTo(-11, 0); ctx.lineTo(-16, -4); ctx.lineTo(-15, 0); ctx.lineTo(-16, 4); ctx.closePath(); ctx.fillStyle = body; ctx.fill(); outline(ctx, 0.6);
-    ellipse(ctx, 5, -1.5, 1.4, 1.4, tell ? '#ff4d4d' : '#fff', 0.5);
-    ctx.restore();
+    if (art.sprite('navy-pike')) {
+      const cx = x + 11, cy = y + 5, flap = Math.sin(t * (tell ? 40 : 14)) * (tell ? 5 : 3);
+      put(ctx, 'navy-pike', PIKE, cx, cy, flash);
+      const fg = ctx.createLinearGradient(cx - 6, cy - 9, cx + 2, cy - 3);
+      fg.addColorStop(0, '#e4f6ff'); fg.addColorStop(1, '#4a90c0');
+      ctx.beginPath(); ctx.moveTo(cx - 2, cy - 3.4); ctx.lineTo(cx - 6, cy - 8 - flap); ctx.lineTo(cx + 2.4, cy - 4.2); ctx.closePath();
+      ctx.fillStyle = flash ? '#fff' : fg; ctx.fill(); outline(ctx, 0.5);
+      if (tell) glow(ctx, cx + 5, cy - 1.6, 1.3, '#ff6a5a', 'rgba(255,40,40,.5)');
+      else { ctx.beginPath(); ctx.arc(cx + 5, cy - 1.6, 1.2, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); outline(ctx, 0.4); ctx.beginPath(); ctx.arc(cx + 5.3, cy - 1.6, 0.55, 0, 7); ctx.fillStyle = '#111'; ctx.fill(); }
+      return;
+    }
   };
 
   // A cloud lurker: a small navy pod with a periscope that hides in cloud banks.
   art.drawLurker = (ctx, x, y, t, flash) => {
-    ctx.save(); ctx.translate(x + 10, y + 7);
-    ellipse(ctx, 0, 0, 10, 6, flash ? '#fff' : '#2c4f8c');
-    ellipse(ctx, -3, 0, 2, 2, '#fff', 0.5); ellipse(ctx, -3, 0, 1, 1, '#c8323a', 0);
-    ctx.fillStyle = '#3a3a44'; ctx.fillRect(-12, 1, 5, 2);
-    ctx.fillStyle = BRASS; ctx.fillRect(2, -11, 2, 6); ctx.fillRect(2, -11, 5, 2);
-    ctx.restore();
+    if (put(ctx, 'navy-lurker', LURK, x + 10, y + 7, flash)) return;
   };
   // Only the periscope and a glint show above the cloud while it hides.
   art.drawLurkerEyes = (ctx, x, y, t) => {
-    ctx.fillStyle = BRASS; ctx.fillRect(x + 12, y - 6, 2, 6); ctx.fillRect(x + 12, y - 6, 5, 2);
-    if (Math.floor(t * 3) % 3 === 0) { ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 17, y - 6, 2, 2); }
+    const im = art.sprite('navy-lurker');
+    if (im) {                                            // just the periscope, cropped from the lurker
+      const k = im.width / LURK.w;
+      ctx.drawImage(im, 16 * k, 2.4 * k, 8 * k, 7 * k, x + 11, y - 6.6, 8, 7);
+      if (Math.floor(t * 3) % 3 === 0) glow(ctx, x + 18.6, y - 4.6, 0.9, '#ffffff', 'rgba(220,240,255,.6)');
+      return;
+    }
   };
 
   // Lightning: a flickering warning line, then a jagged bolt top to bottom.
@@ -300,27 +332,56 @@
       ctx.fillStyle = 'rgba(255,240,140,.9)'; ctx.fillRect(b.x - 0.5, 0, 1, H());
       return;
     }
-    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(0, 0, W(), H());
-    ctx.beginPath(); let px = b.x; ctx.moveTo(px, 0);
-    for (let y = 12; y <= H(); y += 12) { px = b.x + (((y * 7919 + Math.floor(t * 30) * 31) % 13) - 6); ctx.lineTo(px, y); }
-    ctx.strokeStyle = '#fff8c0'; ctx.lineWidth = 4; ctx.stroke(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(220,235,255,.22)'; ctx.fillRect(0, 0, W(), H());
+    const path = [[b.x, 0]], seed = Math.floor(t * 30);
+    for (let y = 10; y <= H(); y += 10) path.push([b.x + (((y * 7919 + seed * 31) % 15) - 7), y]);
+    const stroke = (pts, w, col) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke(); };
+    const branch = [path[6]]; for (let i = 1; i < 6; i++) branch.push([path[6][0] + i * 5 + ((i * 13 + seed) % 5) - 2, path[6][1] + i * 7]);
+    ctx.lineJoin = 'round';
+    for (const pts of [path, branch]) { stroke(pts, 10, 'rgba(150,200,255,.25)'); stroke(pts, 4.5, 'rgba(200,230,255,.8)'); stroke(pts, 1.6, '#ffffff'); }
   };
 
   // Cloud banks from the world (cover): drawn over the ship and lurkers so hiding looks like hiding.
-  art.drawCloudBanks = (ctx, clouds, t, storm) => {
-    for (const c of clouds) art.drawCloudBank(ctx, c.x, c.y + c.h / 2, c.w, t, 0.9, storm, c.ink);
+  art.drawCloudBanks = (ctx, clouds, t, area) => {
+    for (const c of clouds) art.drawCloudBank(ctx, c.x, c.y + c.h / 2, c.w, t, 0.9, area, c.ink, c.h);
   };
 
   art.drawShot = (ctx, b) => {
     if (b.harpoon || b.rocket) {
       ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy || 0, b.vx || 1));
-      if (b.harpoon) { ctx.fillStyle = WOOD_D; ctx.fillRect(-12, -0.8, 12, 1.6); ctx.beginPath(); ctx.moveTo(0, -2.5); ctx.lineTo(5, 0); ctx.lineTo(0, 2.5); ctx.fillStyle = '#c8ccd8'; ctx.fill(); outline(ctx, 0.5); }
-      else { ctx.fillStyle = '#c8323a'; ctx.fillRect(-5, -1.5, 8, 3); ctx.beginPath(); ctx.moveTo(3, -1.5); ctx.lineTo(6, 0); ctx.lineTo(3, 1.5); ctx.fill(); ellipse(ctx, -7, 0, 2.5, 1.5, '#ffd34e', 0); }
+      if (b.harpoon) {
+        const sg = ctx.createLinearGradient(0, -1, 0, 1); sg.addColorStop(0, '#c08a52'); sg.addColorStop(1, '#5c3418');
+        ctx.beginPath(); ctx.rect(-13, -0.9, 13, 1.8); ctx.fillStyle = sg; ctx.fill(); outline(ctx, 0.4);
+        ctx.strokeStyle = 'rgba(230,220,190,.8)'; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(-13, 0); ctx.quadraticCurveTo(-17, 2, -21, 0); ctx.stroke();
+        const hg = ctx.createLinearGradient(0, -3, 0, 3); hg.addColorStop(0, '#f0f2f8'); hg.addColorStop(1, '#6a6e7c');
+        ctx.beginPath(); ctx.moveTo(-1, -3); ctx.lineTo(6, 0); ctx.lineTo(-1, 3); ctx.lineTo(1, 0); ctx.closePath(); ctx.fillStyle = hg; ctx.fill(); outline(ctx, 0.5);
+        ctx.restore(); return;
+      }
+      // a rocket: brass tube, red nose, a flickering flame
+      const fl = ctx.createRadialGradient(-8, 0, 0, -8, 0, 5);
+      fl.addColorStop(0, '#fffbe0'); fl.addColorStop(0.4, '#ffb43c'); fl.addColorStop(1, 'rgba(255,80,30,0)');
+      ctx.beginPath(); ctx.ellipse(-8.5, 0, 4 + Math.random() * 1.5, 2.2, 0, 0, Math.PI * 2); ctx.fillStyle = fl; ctx.fill();
+      const tg = ctx.createLinearGradient(0, -1.8, 0, 1.8); tg.addColorStop(0, '#ffe9a0'); tg.addColorStop(0.5, '#d9a441'); tg.addColorStop(1, '#6a3e12');
+      ctx.beginPath(); ctx.rect(-6, -1.6, 9, 3.2); ctx.fillStyle = tg; ctx.fill(); outline(ctx, 0.4);
+      ctx.beginPath(); ctx.moveTo(3, -1.6); ctx.lineTo(6.5, 0); ctx.lineTo(3, 1.6); ctx.closePath(); ctx.fillStyle = '#c8281e'; ctx.fill(); outline(ctx, 0.4);
+      ctx.beginPath(); ctx.moveTo(-6, -1.6); ctx.lineTo(-8, -3.4); ctx.lineTo(-4, -1.6); ctx.moveTo(-6, 1.6); ctx.lineTo(-8, 3.4); ctx.lineTo(-4, 1.6); ctx.fillStyle = '#8a2a20'; ctx.fill();
       ctx.restore(); return;
     }
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r + 0.4, 0, 7);
-    ctx.fillStyle = b.friendly ? '#2b2b33' : '#c8323a'; ctx.fill(); outline(ctx, 0.6);
-    if (b.friendly) { ctx.beginPath(); ctx.arc(b.x - 0.6, b.y - 0.6, 0.6, 0, 7); ctx.fillStyle = '#9a9aa8'; ctx.fill(); }
+    const r = b.r + 0.4;
+    if (b.friendly) {                                   // an iron cannonball, lit from the upper left
+      const g = ctx.createRadialGradient(b.x - r * 0.4, b.y - r * 0.45, r * 0.1, b.x, b.y, r);
+      g.addColorStop(0, '#d4d4de'); g.addColorStop(0.35, '#5a5a66'); g.addColorStop(1, '#141418');
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.fillStyle = g; ctx.fill(); outline(ctx, 0.5);
+      return;
+    }
+    // the navy's shot: a glowing ember with a halo
+    const halo = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r + 3);
+    halo.addColorStop(0, 'rgba(255,150,60,.55)'); halo.addColorStop(1, 'rgba(255,70,30,0)');
+    ctx.beginPath(); ctx.arc(b.x, b.y, r + 3, 0, 7); ctx.fillStyle = halo; ctx.fill();
+    const core = ctx.createRadialGradient(b.x - r * 0.3, b.y - r * 0.3, 0, b.x, b.y, r);
+    core.addColorStop(0, '#fffbe0'); core.addColorStop(0.45, '#ffb43c'); core.addColorStop(1, '#c8281e');
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.fillStyle = core; ctx.fill();
+    ctx.lineWidth = 0.5; ctx.strokeStyle = '#5a1008'; ctx.stroke();
   };
 
   const GUN_LETTER = { chain: 'C', harpoon: 'H', rockets: 'R', gatling: 'G' };
@@ -329,83 +390,147 @@
       const bob = Math.sin(t * 4) * 1.5;
       ctx.beginPath(); ctx.moveTo(k.x + 5, k.y - 6 + bob); ctx.lineTo(k.x + 5, k.y + 1 + bob); ctx.strokeStyle = INK; ctx.lineWidth = 0.6; ctx.stroke();
       ellipse(ctx, k.x + 5, k.y - 9 + bob, 4, 4.5, '#f1e6cc', 0.8);
-      ctx.fillStyle = WOOD; ctx.fillRect(k.x, k.y + bob, 10, 10); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(k.x, k.y + bob, 10, 10);
+      const wg = ctx.createLinearGradient(k.x, k.y + bob, k.x + 10, k.y + 10 + bob);
+      wg.addColorStop(0, '#b4783e'); wg.addColorStop(1, '#5c3418');
+      ctx.fillStyle = wg; ctx.fillRect(k.x, k.y + bob, 10, 10);
+      ctx.strokeStyle = 'rgba(40,20,8,.6)'; ctx.lineWidth = 0.4;
+      for (const py of [3.3, 6.6]) { ctx.beginPath(); ctx.moveTo(k.x, k.y + py + bob); ctx.lineTo(k.x + 10, k.y + py + bob); ctx.stroke(); }
+      ctx.fillStyle = BRASS; for (const [cx, cy] of [[0, 0], [8, 0], [0, 8], [8, 8]]) ctx.fillRect(k.x + cx, k.y + cy + bob, 2, 2);
+      ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(k.x, k.y + bob, 10, 10);
       art.text(ctx, GUN_LETTER[k.gun] || '?', k.x + 5, k.y + 5.5 + bob, { size: 7, color: '#ffd34e', align: 'center' });
       return;
     }
-    if (k.type === 'coal') { ctx.fillStyle = '#5c3418'; ctx.fillRect(k.x, k.y + 3, 10, 7); ctx.strokeStyle = INK; ctx.lineWidth = 0.8; ctx.strokeRect(k.x, k.y + 3, 10, 7); for (const [dx, dy] of [[2, 2], [5, 1], [7, 3]]) ellipse(ctx, k.x + dx, k.y + dy + 2, 2, 1.6, '#222228', 0.4); return; }
-    if (k.type === 'repair') { ctx.save(); ctx.translate(k.x + 5, k.y + 5); ctx.rotate(-0.7 + Math.sin(t * 3) * 0.2); ctx.fillStyle = '#c8ccd8'; ctx.fillRect(-1.2, -4, 2.4, 9); ctx.beginPath(); ctx.arc(0, -5, 3, 0, 7); ctx.fill(); outline(ctx, 0.6); ctx.fillStyle = '#e04848'; ctx.fillRect(-1.2, 1, 2.4, 4); ctx.restore(); return; }
-    const sq = Math.abs(Math.cos(t * 5 + k.x * 0.1));
-    ctx.beginPath(); ctx.ellipse(k.x + 4, k.y + 4, 3.6 * sq + 0.6, 3.6, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#f4c542'; ctx.fill(); outline(ctx, 0.8);
+    if (k.type === 'coal') {        // a little sack of coal
+      const sg = ctx.createLinearGradient(k.x, k.y, k.x + 10, k.y + 10); sg.addColorStop(0, '#c8a878'); sg.addColorStop(1, '#6a4a2a');
+      ctx.beginPath(); ctx.moveTo(k.x + 1, k.y + 10); ctx.quadraticCurveTo(k.x - 1, k.y + 4, k.x + 3, k.y + 3); ctx.lineTo(k.x + 7, k.y + 3); ctx.quadraticCurveTo(k.x + 11, k.y + 4, k.x + 9, k.y + 10); ctx.closePath();
+      ctx.fillStyle = sg; ctx.fill(); outline(ctx, 0.6);
+      for (const [dx, dy, r] of [[3.2, 2.6, 1.8], [5.6, 1.6, 2], [7.4, 2.8, 1.6]]) {
+        const cg = ctx.createRadialGradient(k.x + dx - 0.6, k.y + dy - 0.6, 0.1, k.x + dx, k.y + dy, r);
+        cg.addColorStop(0, '#8a8a96'); cg.addColorStop(1, '#141418');
+        ctx.beginPath(); ctx.arc(k.x + dx, k.y + dy, r, 0, 7); ctx.fillStyle = cg; ctx.fill(); outline(ctx, 0.4);
+      }
+      return;
+    }
+    if (k.type === 'repair') {      // a steel spanner with a red grip
+      ctx.save(); ctx.translate(k.x + 5, k.y + 5); ctx.rotate(-0.7 + Math.sin(t * 3) * 0.2);
+      const mg = ctx.createLinearGradient(-1.5, 0, 1.5, 0); mg.addColorStop(0, '#f0f2f8'); mg.addColorStop(1, '#6a6e7c');
+      ctx.beginPath(); ctx.rect(-1.2, -3, 2.4, 8.4); ctx.fillStyle = mg; ctx.fill(); outline(ctx, 0.5);
+      ctx.beginPath(); ctx.arc(0, -5, 3.1, 0.35 * Math.PI, 2.65 * Math.PI); ctx.lineTo(0, -5); ctx.closePath(); ctx.fillStyle = mg; ctx.fill(); outline(ctx, 0.5);
+      const rg = ctx.createLinearGradient(-1.5, 0, 1.5, 0); rg.addColorStop(0, '#ff8a7a'); rg.addColorStop(1, '#8a1a14');
+      ctx.beginPath(); ctx.rect(-1.4, 1.4, 2.8, 4.4); ctx.fillStyle = rg; ctx.fill(); outline(ctx, 0.5);
+      ctx.restore(); return;
+    }
+    // a gold doubloon, spinning: shaded face, a darker rim, a glint now and then
+    const sq = Math.abs(Math.cos(t * 5 + k.x * 0.1)), cx = k.x + 4, cy = k.y + 4, rx = 3.6 * sq + 0.6;
+    const gg = ctx.createRadialGradient(cx - rx * 0.4, cy - 1.4, 0.2, cx, cy, 3.8);
+    gg.addColorStop(0, '#fff6c0'); gg.addColorStop(0.45, '#f4c542'); gg.addColorStop(1, '#a8701c');
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx, 3.6, 0, 0, Math.PI * 2); ctx.fillStyle = gg; ctx.fill(); outline(ctx, 0.7);
+    if (rx > 1.6) { ctx.beginPath(); ctx.ellipse(cx, cy, rx * 0.62, 2.2, 0, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(150,96,20,.8)'; ctx.lineWidth = 0.5; ctx.stroke(); }
+    if ((t * 1.3 + k.x * 0.07) % 1 < 0.12) {
+      ctx.strokeStyle = '#fffbe8'; ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.moveTo(cx + 1.6, cy - 4.4); ctx.lineTo(cx + 1.6, cy - 1.2); ctx.moveTo(cx, cy - 2.8); ctx.lineTo(cx + 3.2, cy - 2.8); ctx.stroke();
+    }
   };
 
   art.drawFx = (ctx, f) => {
     if (f.type !== 'boom' || f.t > 0.45) return;          // longer timers are a delay (a boss going down in stages)
     const k = 1 - f.t / 0.45, r = f.r * (0.5 + k * 0.7);
-    ctx.globalAlpha = Math.max(0, 1 - k * 1.1);
-    ellipse(ctx, f.x, f.y, r, r, k < 0.3 ? '#fff4b0' : '#ff9a3c', 0);
-    ellipse(ctx, f.x, f.y, r * 0.6, r * 0.6, k < 0.3 ? '#ffffff' : '#ffd34e', 0);
-    if (k > 0.4) for (let i = 0; i < 5; i++) ellipse(ctx, f.x + Math.cos(i * 1.3) * r, f.y + Math.sin(i * 1.3) * r - k * 6, 3, 3, 'rgba(110,110,120,.7)', 0);
-    ctx.globalAlpha = 1;
+    // smoke puffs rolling outward and up, soft-edged
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.05 + f.r, d = r * (0.5 + k * 0.7), px = f.x + Math.cos(a) * d, py = f.y + Math.sin(a) * d * 0.8 - k * 8, pr = f.r * (0.25 + k * 0.35);
+      const sg = ctx.createRadialGradient(px - pr * 0.3, py - pr * 0.3, 0, px, py, pr);
+      sg.addColorStop(0, `rgba(150,140,140,${0.75 * (1 - k)})`); sg.addColorStop(1, 'rgba(70,64,70,0)');
+      ctx.beginPath(); ctx.arc(px, py, pr, 0, 7); ctx.fillStyle = sg; ctx.fill();
+    }
+    // the fireball: white-hot core, yellow, orange, a red fringe fading out
+    const fa = Math.max(0, 1 - k * 1.15);
+    const fg = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
+    fg.addColorStop(0, `rgba(255,255,240,${fa})`); fg.addColorStop(0.3, `rgba(255,214,90,${fa})`);
+    fg.addColorStop(0.7, `rgba(255,120,40,${fa * 0.9})`); fg.addColorStop(1, 'rgba(200,40,20,0)');
+    ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, 7); ctx.fillStyle = fg; ctx.fill();
+    // sparks flying out
+    if (k < 0.7) {
+      ctx.strokeStyle = `rgba(255,220,120,${1 - k})`; ctx.lineWidth = 0.8;
+      for (let i = 0; i < 7; i++) {
+        const a = i * 0.9 + f.r * 0.3, d0 = r * 0.6 + k * f.r, d1 = d0 + 3;
+        ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * d0, f.y + Math.sin(a) * d0); ctx.lineTo(f.x + Math.cos(a) * d1, f.y + Math.sin(a) * d1); ctx.stroke();
+      }
+    }
   };
 
   // ---------- bosses ----------
+
+  // The painted bosses (tools/paint_navy.py): a still body, with the moving parts drawn here.
+  const BOSS = {
+    thunderer: { w: 150, h: 62, ax: 75, ay: 20 }, tempest: { w: 80, h: 64, ax: 40, ay: 36 },
+    fort: { w: 120, h: 96, ax: 5, ay: 6 }, kraken: { w: 72, h: 52, ax: 36, ay: 30 },
+  };
+  function paintedBoss(ctx, b, x, y, t, f) {
+    const d = BOSS[b.id], k = 'boss-' + b.id;
+    if (b.id === 'thunderer') {
+      const cx = x + 60, cy = y + 18;
+      put(ctx, k, d, cx, cy, f);
+      if (b.state === 'act' && b.attack === 'broadside') {      // both gun decks firing
+        for (const x0 of [48, 82]) for (let i = 0; i < 3; i++) glow(ctx, cx + x0 + 5 + i * 7.5 - 75, cy + 20, 1.6, '#ffd34e', 'rgba(255,140,40,.5)');
+      }
+      for (const py of [-7, 7]) {
+        const spin = Math.abs(Math.sin(t * 35 + py));
+        ctx.beginPath(); ctx.ellipse(cx + 67, cy + py, 1.2, 8 * spin + 1.2, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(150,160,175,.8)'; ctx.fill();
+      }
+    } else if (b.id === 'tempest') {
+      const cx = x + b.w / 2, cy = y + b.h / 2;
+      art.drawCloudBank(ctx, x - 10, cy + 22, b.w + 20, t, 0.95, true);
+      for (const dx of [-24, 24]) {
+        const sp = Math.abs(Math.sin(t * 30 + dx));
+        ctx.beginPath(); ctx.ellipse(cx + dx, cy + 21, 8 * sp + 1, 1.2, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(150,160,175,.85)'; ctx.fill();
+      }
+      put(ctx, k, d, cx, cy, f);
+      const oy = cy - 27;
+      glow(ctx, cx, oy, 5.5 + Math.sin(t * 20) * 0.6, b.tell ? '#fff6a0' : '#bfefff', b.tell ? 'rgba(255,220,90,.5)' : 'rgba(120,200,255,.5)');
+      ctx.lineJoin = 'round';
+      for (let i = 0; i < 3; i++) {                       // crackling arcs from the orb
+        const a = t * 9 + i * 2.1; ctx.beginPath(); ctx.moveTo(cx, oy);
+        for (let n = 1; n <= 4; n++) ctx.lineTo(cx + Math.cos(a) * n * 6 + ((n * 7 + Math.floor(t * 20)) % 5) - 2, oy + Math.sin(a) * n * 6);
+        ctx.strokeStyle = 'rgba(150,210,255,.35)'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.strokeStyle = 'rgba(235,250,255,.95)'; ctx.lineWidth = 0.9; ctx.stroke();
+      }
+    } else if (b.id === 'fort') {
+      put(ctx, k, d, x, y, f);
+      for (const [tx, ty] of CD.BOSSES.fort.turrets) {
+        ctx.save(); ctx.translate(x + tx, y + ty + 2); ctx.rotate(Math.PI + 0.3 + Math.sin(t + tx) * 0.2); barrel(ctx, 12, 1.7); ctx.restore();
+        brassBall(ctx, x + tx, y + ty + 4, 7, 5, f);
+      }
+      ctx.beginPath(); ctx.moveTo(x + 55, y + 4); ctx.lineTo(x + 55, y - 14); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 55, y - 14); ctx.lineTo(x + 66, y - 12 + Math.sin(t * 7)); ctx.lineTo(x + 55, y - 9); ctx.fillStyle = '#2c4f8c'; ctx.fill(); outline(ctx, 0.5);
+    } else if (b.id === 'kraken') {
+      const cx = x + b.w / 2 + 6, cy = y + 30;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 8; i++) {                       // eight clockwork tentacles: tapered brass tubes with dark rings
+        const x0 = cx - 26 + i * 7.4, out = (i - 3.5) * 0.9, pts = [];
+        for (let n = 0; n <= 7; n++) pts.push([x0 + out * n + Math.sin(t * 3 + i * 0.9 + n * 0.6) * n * 0.9, cy + 12 + n * 6]);
+        const pass = (extra, col, dx = 0) => {
+          for (let n = 0; n < 7; n++) {
+            ctx.beginPath(); ctx.moveTo(pts[n][0] + dx, pts[n][1]); ctx.lineTo(pts[n + 1][0] + dx, pts[n + 1][1]);
+            ctx.lineWidth = Math.max(0.6, 5.2 - n * 0.6 + extra); ctx.strokeStyle = col; ctx.stroke();
+          }
+        };
+        pass(1.4, INK); pass(0, f ? '#fff' : '#c08a30'); pass(-3.2, f ? '#fff' : 'rgba(255,236,170,.75)', -0.7);
+        if (!f) for (let n = 1; n < 7; n += 1) {
+          const r = Math.max(0.8, 5.2 - n * 0.6) / 2 + 0.3;
+          ctx.beginPath(); ctx.ellipse(pts[n][0], pts[n][1], r, r * 0.45, 0, 0, Math.PI * 2); ctx.fillStyle = n % 2 ? '#6a3e12' : '#e8b860'; ctx.fill();
+        }
+      }
+      ctx.lineCap = 'butt';
+      put(ctx, k, d, cx, cy, f);
+      for (const ex of [-12, 6]) glow(ctx, cx + ex, cy + 2, 2.6, b.tell ? '#ff6a5a' : '#bff4ff', b.tell ? 'rgba(255,40,40,.55)' : 'rgba(120,220,255,.45)');
+    }
+  }
 
   art.drawBoss = (ctx, b, x, y, t) => {
     ctx.save();
     if (b.tell && Math.floor(t * 12) % 2) { ctx.shadowColor = '#ffd34e'; ctx.shadowBlur = 10; }
     const f = b.flash > 0 && Math.floor(b.t * 24) % 2 === 0;   // flicker, so steady fire doesn't bleach it
-    if (b.id === 'thunderer') {
-      // a dreadnought: a double-length zeppelin with two gondolas and a red war stripe
-      ctx.save(); ctx.translate(x + b.w / 2, y + 18); ctx.scale(1.55, 1.3);
-      art.drawZeppelin(ctx, 0, 0, t, { flash: f, fire: b.state === 'act' && b.attack === 'broadside' ? 1 : 0 });
-      ctx.restore();
-      if (!f) { ctx.fillStyle = '#c8323a'; ctx.fillRect(x + 22, y + 15, b.w - 40, 3); }
-    } else if (b.id === 'tempest') {
-      const cx = x + b.w / 2, cy = y + b.h / 2;
-      art.drawCloudBank(ctx, x - 6, cy + 18, b.w + 12, t, 0.95, true);
-      ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy + 8); ctx.lineTo(cx + 22, cy + 18); ctx.lineTo(cx - 22, cy + 18); ctx.closePath();
-      ctx.fillStyle = f ? '#fff' : BRASS; ctx.fill(); outline(ctx);
-      ctx.fillStyle = f ? '#fff' : '#5a5a68'; ctx.fillRect(cx - 5, cy - 22, 10, 30); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(cx - 5, cy - 22, 10, 30);
-      for (let i = 0; i < 4; i++) ellipse(ctx, cx, cy - 18 + i * 7, 9 - i, 2.2, f ? '#fff' : BRASS_D, 0.8);
-      ellipse(ctx, cx, cy - 26, 6, 6, '#e8f8ff', 1);
-      for (let i = 0; i < 3; i++) {                     // crackling arcs from the coil
-        const a = t * 9 + i * 2.1; ctx.beginPath(); ctx.moveTo(cx, cy - 26);
-        for (let k = 1; k <= 4; k++) ctx.lineTo(cx + Math.cos(a) * k * 6 + ((k * 7 + Math.floor(t * 20)) % 5) - 2, cy - 26 + Math.sin(a) * k * 6);
-        ctx.strokeStyle = 'rgba(200,240,255,.85)'; ctx.lineWidth = 1; ctx.stroke();
-      }
-      for (const dx of [-24, 24]) { ctx.save(); ctx.translate(cx + dx, cy + 20); const sp = Math.abs(Math.sin(t * 30 + dx)); ctx.beginPath(); ctx.ellipse(0, 0, 8 * sp + 1, 1.2, 0, 0, 7); ctx.fillStyle = '#9aa4b4'; ctx.fill(); outline(ctx, 0.6); ctx.restore(); }
-    } else if (b.id === 'fort') {
-      // a fortress on a floating rock
-      ctx.beginPath(); ctx.moveTo(x, y + 40); ctx.lineTo(x + b.w, y + 40); ctx.lineTo(x + b.w - 14, y + 62); ctx.lineTo(x + 60, y + b.h); ctx.lineTo(x + 24, y + 66); ctx.closePath();
-      ctx.fillStyle = f ? '#fff' : '#8a6a5a'; ctx.fill(); outline(ctx);
-      ctx.fillStyle = '#6f9a52'; ctx.fillRect(x, y + 38, b.w, 4);
-      ctx.fillStyle = f ? '#fff' : '#9a8c80'; ctx.fillRect(x + 8, y + 14, b.w - 16, 26); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.strokeRect(x + 8, y + 14, b.w - 16, 26);
-      for (let i = 0; i < 9; i++) ctx.fillRect(x + 8 + i * 11, y + 10, 6, 5);
-      ctx.fillStyle = '#3a2c22'; for (const gx of [24, 50, 76]) ctx.fillRect(x + gx, y + 26, 6, 9);
-      for (const [tx, ty] of CD.BOSSES.fort.turrets) {
-        ellipse(ctx, x + tx, y + ty + 4, 7, 5, f ? '#fff' : BRASS, 1);
-        ctx.save(); ctx.translate(x + tx, y + ty + 2); ctx.rotate(Math.PI + 0.3 + Math.sin(t + tx) * 0.2); ctx.fillStyle = '#3a3a44'; ctx.fillRect(0, -1.5, 11, 3); ctx.restore();
-      }
-      ctx.beginPath(); ctx.moveTo(x + 55, y + 2); ctx.lineTo(x + 55, y - 14); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x + 55, y - 14); ctx.lineTo(x + 66, y - 12 + Math.sin(t * 7)); ctx.lineTo(x + 55, y - 9); ctx.fillStyle = '#2c4f8c'; ctx.fill();
-    } else if (b.id === 'kraken') {
-      // a clockwork kraken: brass dome head, porthole eyes, eight segmented tentacles
-      const cx = x + b.w / 2 + 6, cy = y + 30;
-      for (let i = 0; i < 8; i++) {
-        const x0 = cx - 26 + i * 7.4, out = (i - 3.5) * 0.9;
-        ctx.beginPath(); let px = x0, py = cy + 12; ctx.moveTo(px, py);
-        for (let k = 1; k <= 7; k++) { px = x0 + out * k + Math.sin(t * 3 + i * 0.9 + k * 0.6) * k * 0.9; py = cy + 12 + k * 6; ctx.lineTo(px, py); }
-        ctx.strokeStyle = INK; ctx.lineWidth = 4.2; ctx.stroke(); ctx.strokeStyle = f ? '#fff' : BRASS_D; ctx.lineWidth = 2.6; ctx.stroke();
-      }
-      ctx.beginPath(); ctx.ellipse(cx, cy, 30, 24, 0, Math.PI * 1.05, Math.PI * 1.95 + 0.3); ctx.lineTo(cx + 30, cy + 14); ctx.lineTo(cx - 30, cy + 14); ctx.closePath();
-      ctx.fillStyle = f ? '#fff' : BRASS; ctx.fill(); outline(ctx, 1.4);
-      ctx.strokeStyle = BRASS_D; ctx.lineWidth = 1; for (const rx of [-15, 0, 15]) { ctx.beginPath(); ctx.moveTo(cx + rx, cy - 22 + Math.abs(rx) * 0.3); ctx.lineTo(cx + rx, cy + 14); ctx.stroke(); }
-      const glow = b.tell ? '#ff4d4d' : '#9fe8ff';
-      for (const ex of [-12, 6]) { ellipse(ctx, cx + ex, cy + 2, 6, 6, '#5a5a68', 1); ellipse(ctx, cx + ex, cy + 2, 3.6, 3.6, glow, 0); }
-      for (let i = 0; i < 5; i++) ellipse(ctx, cx - 20 + i * 10, cy + 13, 1.2, 1.2, BRASS_D, 0);
-    }
+    paintedBoss(ctx, b, x, y, t, f);
     ctx.restore();
   };
 
@@ -418,10 +543,8 @@
       return;
     }
     const k = 1 - h.active / 0.5, x0 = W() + 20 - k * (W() + 60), cy = h.y + h.h / 2;
-    ctx.beginPath(); ctx.moveTo(W() + 30, cy);
-    for (let x = W() + 30; x > x0; x -= 8) ctx.lineTo(x, cy + Math.sin(x * 0.08 + t * 20) * 4);
-    ctx.strokeStyle = INK; ctx.lineWidth = 10; ctx.lineCap = 'round'; ctx.stroke();
-    ctx.strokeStyle = BRASS; ctx.lineWidth = 7; ctx.stroke(); ctx.lineCap = 'butt';
+    // a sweeping brass tentacle, segment by segment
+    for (let x = x0, i = 0; x < W() + 30; x += 6, i++) brassBall(ctx, x, cy + Math.sin(x * 0.08 + t * 20) * 4, Math.min(7.5, 3.5 + i * 0.35));
   };
 
   // The boss's name and health along the bottom.
@@ -457,7 +580,7 @@
     // the airship in its new colours, on a mooring
     const preview = CD.applyLoadout({ ...CD.makeShip(), tilt: Math.sin(t) * 0.04, inv: 0 }, h.view);
     ctx.save(); ctx.translate(24, 62); ctx.scale(2.4, 2.4); art.drawShip(ctx, preview, 0, Math.sin(t * 1.4) * 1.5, t); ctx.restore();
-    ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(70, 130); ctx.lineTo(70, 200); ctx.stroke();
+    ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(70, 118); ctx.lineTo(70, 200); ctx.stroke();
     art.text(ctx, 'THE HANGAR', W() / 2 + 60, 16, { size: 13, color: '#ffd34e', align: 'center' });
     art.text(ctx, `${profile.gold} GOLD`, W() - 8, 30, { size: 8, color: '#ffd34e', align: 'right' });
     panel(ctx, L.labelX - 10, L.top - 10, W() - L.labelX + 4, CD.CATALOG.length * L.step + 12);
