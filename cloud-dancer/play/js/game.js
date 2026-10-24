@@ -236,7 +236,7 @@
     for (const e of world.enemies) { const p = at(e); art.drawEnemy(ctx, e, p.x, p.y, t); }
     if (state !== 'title' && (!ship.dead || state !== 'over')) { const p = at(ship); art.drawShip(ctx, ship, p.x, p.y, t); }
     for (const b of world.shots) art.drawShot(ctx, { ...b, ...at(b) });
-    art.drawCloudBanks(ctx, world.clouds, t, areaId === 'storm');   // over the ship: hiding looks like hiding
+    art.drawCloudBanks(ctx, world.clouds, t, areaId);   // over the ship: hiding looks like hiding
     if (world.boss) { const p = at(world.boss); art.drawBoss(ctx, world.boss, p.x, p.y, t); }   // ...but a boss never hides
     if (state === 'play' && world.clouds.some(c => CD.overlap(c, ship))) {   // ...but you can still see where you are
       const p = at(ship); ctx.globalAlpha = 0.35; art.drawShip(ctx, ship, p.x, p.y, t); ctx.globalAlpha = 1;
@@ -245,13 +245,14 @@
     for (const b of world.bolts) art.drawBolt(ctx, b, t);
     for (const h of world.hazards) art.drawHazard(ctx, h, t);
     for (const f of world.fx) art.drawFx(ctx, f);
-    art.drawNearClouds(ctx, dist);
+    art.drawNearClouds(ctx, dist, areaId, t);
 
     if (state === 'title') {
       ctx.fillStyle = 'rgba(16,24,48,.35)'; ctx.fillRect(0, 0, W, H);
       art.drawShip(ctx, CD.applyLoadout({ ...CD.makeShip(), tilt: Math.sin(t) * 0.05 }, profile.equip), 40, 100 + Math.sin(t * 1.3) * 6, t);
-      say('CLOUD DANCER', 52, 28, '#ffd34e');
-      say('BEYOND THE REEF', 76, 11, '#ffffff');
+      const logo = art.sprite('logo');
+      if (logo) ctx.drawImage(logo, W / 2 - 50, 4, 100, 100 * logo.height / logo.width);
+      else { say('CLOUD DANCER', 52, 28, '#ffd34e'); say('BEYOND THE REEF', 76, 11, '#ffffff'); }
       if (Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO CAST OFF' : 'PRESS SPACE TO CAST OFF', 118, 10);
       say(touchMode() ? 'TAP HERE: THE HANGAR' : 'H: THE HANGAR', 146, 8, '#ffd34e');
       say(`${profile.gold} GOLD IN YER CHEST` + (profile.best ? `   ·   BEST ${profile.best}` : ''), 164, 7, '#cfe8ff');
