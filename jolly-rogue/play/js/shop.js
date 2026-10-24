@@ -94,6 +94,6 @@
     if (JR.touchMode()) {
       JR.art.button(ctx, JR.SLAYOUT.buy, 'BUY', '#7cfc7c');
       JR.art.button(ctx, JR.SLAYOUT.sail, 'SAIL');
-    } else P.text(ctx, 'UP/DOWN: CHOOSE   SPACE: BUY   ENTER: SET SAIL', W / 2, H - 22, { align: 'center', color: '#c8a878' });
+    } else P.text(ctx, JR.padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: SET SAIL' : 'UP/DOWN: CHOOSE   SPACE: BUY   ENTER: SET SAIL', W / 2, H - 22, { align: 'center', color: '#c8a878' });
   };
 })();

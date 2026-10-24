@@ -177,6 +177,30 @@
       if (state === 'title' || (state === 'over' && overT > 0.8)) { start(); input.jumpPressed = input.firePressed = false; }
     }
   });
+  // Controllers and TV remotes (js/pad.js). A (OK on a remote) jumps, starts and buys; X, B,
+  // Play/Pause and the triggers fire (B backs out of a menu); Y or Fast-forward opens the Captain's
+  // Quarters; Back pauses or backs out, and leaves the app from the title; Menu starts or pauses.
+  window.PAD = {
+    code: name => {
+      const menu = state === 'quarters' || state === 'shop';
+      const front = state === 'title' || (state === 'over' && overT > 0.8);
+      switch (name) {
+        case 'up': return 'ArrowUp';
+        case 'down': return 'ArrowDown';
+        case 'left': return 'ArrowLeft';
+        case 'right': return 'ArrowRight';
+        case 'a': return 'Space';
+        case 'b': return menu ? 'Escape' : 'KeyX';
+        case 'x': case 'rt': case 'rb': return 'KeyX';
+        case 'lt': case 'lb': return 'KeyZ';
+        case 'y': return front ? 'KeyC' : null;
+        case 'back': return 'Escape';
+        case 'start': return front ? 'Enter' : menu ? 'Escape' : 'KeyP';
+        default: return null;
+      }
+    },
+    canExit: () => state === 'title',
+  };
   // Phone controls (js/touch.js), plus taps on the canvas for every menu.
   touch = JR.initTouch(input, { onPause: () => { sfx.unlock(); togglePause(); }, onMute: () => { sfx.unlock(); sfx.toggleMute(); } });
   resize();                                                    // touch mode may change the scaling
@@ -382,10 +406,13 @@
       JR.ui.panel(ctx, 'board', W / 2 - 104, 16, 208, 80);
       say('JOLLY', 38, 4, '#fcc838');
       say('ROGUE', 72, 4);
-      const go = JR.touchMode() ? 'TAP TO SET SAIL' : 'PRESS SPACE TO SET SAIL';
+      const go = JR.touchMode() ? 'TAP TO SET SAIL' : JR.padMode() ? 'PRESS A / OK TO SET SAIL' : 'PRESS SPACE TO SET SAIL';
       if (Math.floor(t * 2) % 2 === 0) { JR.ui.banner(ctx, W / 2, 98, JR.px.textImage(go).width + 36); ink(go, 104); }
-      say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : "C: CAPTAIN'S QUARTERS", 118, 1, '#fcc838');
-      if (JR.touchMode()) {
+      say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : JR.padMode() ? "Y OR FAST-FORWARD: CAPTAIN'S QUARTERS" : "C: CAPTAIN'S QUARTERS", 118, 1, '#fcc838');
+      if (JR.padMode()) {
+        say('STICK/D-PAD MOVE + AIM   A JUMP   X OR B FIRE', 196, 1, '#fce4a8');
+        say('REMOTE: OK JUMPS, PLAY/PAUSE FIRES', 207, 1, '#fce4a8');
+      } else if (JR.touchMode()) {
         say('D-PAD: MOVE + AIM   RIGHT: JUMP + FIRE', 196, 1, '#fce4a8');
         say('TAP ANYWHERE TO START', 207, 1, '#fce4a8');
       } else {
@@ -422,8 +449,8 @@
       say(`SCORE ${score()}   GOLD ${player.gold}   SAILORS ${player.kills}`, 104);
       say(score() >= best && best ? 'NEW HIGH SCORE!' : `HI ${best}`, 118, 1, '#fcc838');
       say(`+${banked} GOLD TO YER CHEST   (${profile.gold} IN ALL)`, 132, 1, '#fcc838');
-      if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(JR.touchMode() ? 'TAP TO SAIL AGAIN' : 'PRESS SPACE TO SAIL AGAIN', 156);
-      if (overT > 0.8) say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : "C: CAPTAIN'S QUARTERS", 170, 1, '#fce4a8');
+      if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(JR.touchMode() ? 'TAP TO SAIL AGAIN' : JR.padMode() ? 'PRESS A / OK TO SAIL AGAIN' : 'PRESS SPACE TO SAIL AGAIN', 156);
+      if (overT > 0.8) say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : JR.padMode() ? "Y OR FAST-FORWARD: CAPTAIN'S QUARTERS" : "C: CAPTAIN'S QUARTERS", 170, 1, '#fce4a8');
     }
   }
 

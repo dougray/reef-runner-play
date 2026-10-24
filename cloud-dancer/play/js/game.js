@@ -12,8 +12,11 @@
 
   // The whole 384x216 view always shows. On an upright phone it sits at the top, full width, and
   // the controls get the space below it (index.html pads the top).
+  // `quality` scales the canvas below the screen's own resolution when frames run slow (a TV stick
+  // driving a 1080p screen, an old phone); see frame().
+  let quality = 1;
   function resize() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(1, (window.devicePixelRatio || 1) * quality);
     const top = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
     scale = Math.min(window.innerWidth * dpr / CD.VIEW_W, (window.innerHeight - top) * dpr / CD.VIEW_H);
     canvas.width = Math.round(CD.VIEW_W * scale);
@@ -127,6 +130,29 @@
     if (code === 'KeyH' && canRestart()) return openHangar();
     if (canRestart() && (code === 'Enter' || code === 'Space')) { start(); input.dashPressed = false; }
   });
+  // Controllers and TV remotes (js/pad.js). A (OK on a remote) starts, dashes and buys; B backs
+  // out of a menu and dashes in the air; Back pauses or backs out, and leaves the app from the
+  // title; X, Play/Pause and the right trigger dash; Y or Fast-forward opens the Hangar; Menu
+  // starts or pauses.
+  window.PAD = {
+    code: name => {
+      const menu = state === 'hangar' || state === 'market';
+      switch (name) {
+        case 'up': return 'ArrowUp';
+        case 'down': return 'ArrowDown';
+        case 'left': return 'ArrowLeft';
+        case 'right': return 'ArrowRight';
+        case 'a': return 'Space';
+        case 'b': return state === 'play' ? 'KeyZ' : 'Escape';
+        case 'back': return 'Escape';
+        case 'x': case 'rt': return menu ? 'Space' : 'KeyZ';
+        case 'y': case 'rb': return canRestart() ? 'KeyH' : null;
+        case 'start': return canRestart() ? 'Enter' : menu ? 'Escape' : 'KeyP';
+        default: return null;
+      }
+    },
+    canExit: () => state === 'title',
+  };
   touch = CD.initTouch(input, {
     canvas, ship: () => ship,
     onPause: () => { CD.sfx && CD.sfx.unlock(); togglePause(); },
@@ -253,10 +279,12 @@
       const logo = art.sprite('logo');
       if (logo) ctx.drawImage(logo, W / 2 - 50, 4, 100, 100 * logo.height / logo.width);
       else { say('CLOUD DANCER', 52, 28, '#ffd34e'); say('BEYOND THE REEF', 76, 11, '#ffffff'); }
-      if (Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO CAST OFF' : 'PRESS SPACE TO CAST OFF', 118, 10);
-      say(touchMode() ? 'TAP HERE: THE HANGAR' : 'H: THE HANGAR', 146, 8, '#ffd34e');
+      if (Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO CAST OFF' : padMode() ? 'PRESS A / OK TO CAST OFF' : 'PRESS SPACE TO CAST OFF', 118, 10);
+      say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? 'Y OR FAST-FORWARD: THE HANGAR' : 'H: THE HANGAR', 146, 8, '#ffd34e');
       say(`${profile.gold} GOLD IN YER CHEST` + (profile.best ? `   ·   BEST ${profile.best}` : ''), 164, 7, '#cfe8ff');
-      say(touchMode() ? 'DRAG TO STEER · CANNONS FIRE ON THEIR OWN · STEAM = DASH' : 'ARROWS/WASD STEER · CANNONS FIRE ON THEIR OWN · SPACE = FULL STEAM', 200, 6.5, '#e8f4ff');
+      say(touchMode() ? 'DRAG TO STEER · CANNONS FIRE ON THEIR OWN · STEAM = DASH'
+        : padMode() ? 'STICK OR D-PAD STEERS · CANNONS FIRE ON THEIR OWN · A = FULL STEAM'
+        : 'ARROWS/WASD STEER · CANNONS FIRE ON THEIR OWN · SPACE = FULL STEAM', 200, 6.5, '#e8f4ff');
       return;
     }
     art.drawHud(ctx, ship, world, profile.best, hudInset());
@@ -269,19 +297,20 @@
     else if (state === 'paused') {
       ctx.fillStyle = 'rgba(16,24,48,.5)'; ctx.fillRect(0, 0, W, H);
       say('PAUSED', H / 2 - 8, 22);
-      say(touchMode() ? 'TAP TO CARRY ON' : 'P OR ESC TO CARRY ON', H / 2 + 16, 8);
+      say(touchMode() ? 'TAP TO CARRY ON' : padMode() ? 'BACK OR MENU TO CARRY ON' : 'P OR ESC TO CARRY ON', H / 2 + 16, 8);
     } else if (state === 'over') {
       ctx.fillStyle = `rgba(16,24,48,${Math.min(0.6, overT)})`; ctx.fillRect(0, 0, W, H);
       say('SHOT DOWN!', 62, 24, '#ff9a3c');
       say(`SCORE ${world.score}   BOSSES ${world.bossesBeaten || 0}`, 92, 9);
       say(banked && banked.newBest ? 'NEW BEST!' : `BEST ${profile.best}`, 108, 8, '#ffd34e');
       if (banked) say(`+${banked.banked} GOLD TO YER CHEST   (${profile.gold} IN ALL)`, 124, 8, '#ffd34e');
-      if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO FLY AGAIN' : 'PRESS SPACE TO FLY AGAIN', 150, 10);
-      if (overT > 0.8) say(touchMode() ? 'TAP HERE: THE HANGAR' : 'H: THE HANGAR', 168, 8, '#cfe8ff');
+      if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO FLY AGAIN' : padMode() ? 'PRESS A / OK TO FLY AGAIN' : 'PRESS SPACE TO FLY AGAIN', 150, 10);
+      if (overT > 0.8) say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? 'Y OR FAST-FORWARD: THE HANGAR' : 'H: THE HANGAR', 168, 8, '#cfe8ff');
     }
   }
 
   const touchMode = () => document.documentElement.classList.contains('touch');
+  const padMode = () => document.documentElement.classList.contains('pad');   // a controller or TV remote (js/pad.js)
   // Keep the HUD clear of the phone's corner buttons.
   function hudInset() {
     if (!touchMode()) return { l: 0, r: 0 };
@@ -294,7 +323,18 @@
 
   resize();
   let last = performance.now(), acc = 0;
+  // Frame pacing: if frames average slower than about 40 a second over two seconds of play, draw at
+  // three quarters the resolution (down to half), and measure again.
+  let slowT = 0, slowN = 0;
+  function pace(ms) {
+    if (state !== 'play' || ms > 250 || quality <= 0.5) return;
+    slowT += ms; slowN++;
+    if (slowT < 2000) return;
+    if (slowT / slowN > 25) { quality = Math.max(0.5, quality * 0.75); resize(); }
+    slowT = slowN = 0;
+  }
   function frame(now) {
+    pace(now - last);
     acc += Math.min(0.1, (now - last) / 1000);
     last = now;
     while (acc >= DT) { step(); acc -= DT; }
@@ -314,6 +354,7 @@
       get hangar() { return hangar; }, profile, input, start, openHangar, openMarket, tap,
       step(n = 1) { for (let i = 0; i < n; i++) step(); alpha = 1; render(); },
       key: code => window.dispatchEvent(new KeyboardEvent('keydown', { code })),
+      get quality() { return quality; },
     };
   }
 })();

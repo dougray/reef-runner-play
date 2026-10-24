@@ -7,6 +7,7 @@
   const art = (CD.art = {});
   const INK = '#2a1a12';
   const W = () => CD.VIEW_W, H = () => CD.VIEW_H;
+  const padMode = () => document.documentElement.classList.contains('pad');   // a controller or TV remote
 
   const BRASS = '#d9a441';
 
@@ -596,7 +597,7 @@
     const note = h.msgT > 0 ? h.msg : o.note || (CD.owns(profile, sel.key, o.id) ? '' : `BUY FOR ${o.price} GOLD`);
     if (note) art.text(ctx, note, W() / 2 + 60, 182, { size: 7, color: h.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
     if (document.documentElement.classList.contains('touch')) { art.button(ctx, L.buy, 'BUY', !CD.owns(profile, sel.key, o.id)); art.button(ctx, L.done, 'DONE'); }
-    else art.text(ctx, 'ARROWS: CHOOSE   SPACE: BUY   ENTER: DONE', W() / 2 + 60, 204, { size: 6.5, color: '#d9c4a0', align: 'center' });
+    else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: DONE' : 'ARROWS: CHOOSE   SPACE: BUY   ENTER: DONE', W() / 2 + 60, 204, { size: 6.5, color: '#d9c4a0', align: 'center' });
   };
 
   art.drawMarket = (ctx, m, w, s, t, touch) => {
@@ -616,7 +617,7 @@
     const cur = m.current();
     art.text(ctx, m.msgT > 0 ? m.msg : cur.note, W() / 2, touch ? 184 : 188, { size: 7, color: m.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
     if (touch) { art.button(ctx, L.buy, 'BUY'); art.button(ctx, L.sail, 'CAST OFF'); }
-    else art.text(ctx, 'UP/DOWN: CHOOSE   SPACE: BUY   ENTER: CAST OFF', W() / 2, 200, { size: 6.5, color: '#d9c4a0', align: 'center' });
+    else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: CAST OFF' : 'UP/DOWN: CHOOSE   SPACE: BUY   ENTER: CAST OFF', W() / 2, 200, { size: 6.5, color: '#d9c4a0', align: 'center' });
   };
 
   // ---------- HUD ----------
