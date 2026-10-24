@@ -34,21 +34,52 @@
     if (d.blast) { CD.explode(w, s, cx, cy, d.blast); return; }
     w.fx.push({ type: 'boom', x: cx, y: cy, t: 0.45, r: Math.max(14, e.w * 0.4) });
     if (d.drops === 'weapon') drop(w, 'weapon', cx, cy, { gun: CD.PICKUP_GUNS[Math.floor(w.rand() * CD.PICKUP_GUNS.length)] });
+    // Gold by size: a gyrocopter drops a coin, a zeppelin bursts into six. Sometimes a chest too.
+    for (let i = 0; i < (d.gold || 1); i++) drop(w, 'gold', cx + (i - (d.gold - 1) / 2) * 7, cy + (i % 2) * 5, { vy: -20 - (i % 3) * 12 });
     const r = w.rand();
     if (r < 0.08) drop(w, 'repair', cx, cy);
     else if (r < 0.18) drop(w, 'coal', cx, cy);
-    else if (r < 0.6) drop(w, 'gold', cx, cy);
+    else if (r < (d.gold >= 6 ? 0.38 : 0.22)) drop(w, 'chest', cx, cy - 6);
   };
 
   CD.collect = (w, s, k) => {
     if (k.type === 'gold') {
-      w.gold += 1; w.score += 10;
-      if (w.gold % 100 === 0) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }   // series rule: every 100 gold in a run
+      const before = w.gold;
+      w.gold += s.magnet ? 2 : 1; w.score += 10;                                  // the Lodestone: gold counts double
+      if (Math.floor(w.gold / 100) > Math.floor(before / 100)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }   // series rule: every 100 gold in a run
+    }
+    else if (k.type === 'chest') {                                                 // a treasure chest: 25 gold
+      const before = w.gold;
+      w.gold += CD.CHEST_GOLD; w.score += 100;
+      if (Math.floor(w.gold / 100) > Math.floor(before / 100)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }
     }
     else if (k.type === 'coal') s.steam = Math.min(s.steamMax, s.steam + 40);
     else if (k.type === 'repair') s.hearts = Math.min(s.maxHearts, s.hearts + 1);
     else if (k.type === 'weapon') { s.weapon = k.gun; s.weaponT = CD.WEAPON_TIME; }
-    emit(w, k.type === 'gold' ? 'coin' : 'pickup', k.x || 0, k.y || 0);
+    emit(w, k.type === 'gold' || k.type === 'chest' ? 'coin' : 'pickup', k.x || 0, k.y || 0);
+  };
+
+  // Exploding shells: a burst that hurts every other enemy close by.
+  const splash = (w, s, x, y, hit) => {
+    w.fx.push({ type: 'boom', x, y, t: 0.3, r: 12 });
+    for (const o of w.enemies) {
+      if (o === hit || o.hp <= 0 || o.hidden) continue;
+      const dx = o.x + o.w / 2 - x, dy = o.y + o.h / 2 - y;
+      if (Math.hypot(dx, dy) < CD.BURST_R + Math.max(o.w, o.h) / 2) { o.hp -= 1; o.flash = 0.08; if (o.hp <= 0) CD.killEnemy(w, s, o); }
+    }
+  };
+
+  // The wingman: a pirate gyrocopter that keeps station above and behind the ship and fires ahead.
+  CD.updateWingman = (w, s, dt) => {
+    if (!s.wingman || s.dead) { w.wing = null; return; }
+    const wg = w.wing || (w.wing = { x: s.x - 10, y: s.y - 24, cool: 0.3, t: 0 });
+    wg.t += dt;
+    const tx = s.x - 6, ty = Math.max(4, s.y - 26) + Math.sin(wg.t * 2.2) * 3;
+    wg.x += (tx - wg.x) * Math.min(1, dt * 4); wg.y += (ty - wg.y) * Math.min(1, dt * 4);
+    if ((wg.cool -= dt) <= 0) {
+      wg.cool = 0.5;
+      w.shots.push({ x: wg.x + 16, y: wg.y + 8, r: 1.8, friendly: true, vx: CD.SHOT_SPEED, vy: 0, life: 1.6, dmg: 1, wing: true });
+    }
   };
 
   // The ship's hitbox is a bit smaller than its art (series rule: generous).
@@ -71,6 +102,7 @@
           if (b.pierce) { b.hit = b.hit || []; if (b.hit.includes(e)) continue; b.hit.push(e); }
           e.hp -= b.dmg; e.flash = 0.08;
           emit(w, 'hit', b.x, b.y);
+          if (b.burst) splash(w, s, b.x, b.y, e);
           if (e.hp <= 0) CD.killEnemy(w, s, e);
           if (!b.pierce) { b.life = 0; break; }
         }
@@ -130,15 +162,18 @@
     w.shots.push(...born);
   };
 
-  // Pickups drift down and back; the coin magnet (market) or the parrot pulls gold in from further off.
+  // Prizes claim themselves: each one bursts out of its wreck for a moment, then flies to the
+  // airship, faster and faster, wherever it is, so nothing is lost off the screen. The parrot
+  // brings them in sooner.
   CD.updatePickups = (w, s, dt) => {
-    const reach = s.magnet ? 80 : s.pet === 'parrot' ? 45 : 0, cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    const wait = s.pet === 'parrot' ? 0.1 : 0.4, cx = s.x + s.w / 2, cy = s.y + s.h / 2;
     for (const k of w.pickups) {
       k.t += dt;
-      const dx = cx - (k.x + 5), dy = cy - (k.y + 5), d = Math.hypot(dx, dy);
-      if (k.type === 'gold' && d < reach) { k.x += (dx / d) * 160 * dt; k.y += (dy / d) * 160 * dt; continue; }
-      k.vy = Math.min(40, k.vy + 60 * dt); k.y += k.vy * dt; k.x -= 30 * dt;
-      if (k.x < -10 || k.y > CD.VIEW_H) k.taken = true;
+      if (k.t < wait) { k.vy = Math.min(40, k.vy + 60 * dt); k.y += k.vy * dt; k.x -= 30 * dt; continue; }
+      const dx = cx - (k.x + 5), dy = cy - (k.y + 5), d = Math.hypot(dx, dy) || 1;
+      const speed = Math.min(420, 140 + (k.t - wait) * 320);
+      const step = Math.min(d, speed * dt);
+      k.x += (dx / d) * step; k.y += (dy / d) * step;
     }
   };
 
@@ -163,6 +198,7 @@
 
     s.fireCool -= dt;
     if (s.fireCool <= 0 && !s.dead && !w.paused) s.fireCool = CD.fireWeapon(w, s);
+    CD.updateWingman(w, s, dt);
 
     if (!w.boss) { w.spawnTimer -= dt; if (w.spawnTimer <= 0) CD.spawnWave(w, s); }
 

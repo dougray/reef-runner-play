@@ -17,7 +17,8 @@
 <script>
   // Phones and tablets get on-screen SAIL / FIRE buttons. Decided before first paint;
   // a touch on a device that didn't report a coarse pointer switches them on later.
-  if (window.matchMedia('(pointer: coarse)').matches) document.documentElement.classList.add('touch');
+  // A TV's web view claims a coarse pointer but has no touch points.
+  if (window.matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints !== 0) document.documentElement.classList.add('touch');
 </script>
 <style>
   html, body {

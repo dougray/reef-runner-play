@@ -19,7 +19,14 @@
     const gun = CD.WEAPONS[s.weapon] || CD.WEAPONS.cannon;
     const bx = s.x + s.w - 2, by = s.y + s.h * 0.62;
     const shots = gun.shots(w.rand);
-    if (s.wide && gun === CD.WEAPONS.cannon) shots.push({ vx: CD.SHOT_SPEED, vy: 0, life: 2, dmg: 1 });   // the market's wide broadside
+    if (gun === CD.WEAPONS.cannon) {
+      // The broadside's upgrades: a wider spread (3, then 5 balls), heavy shot, exploding shells,
+      // and a rear gunner firing back the way you came.
+      const extra = [[0], [0, -0.16, 0.16]][(s.spread || 0) - 1] || [];
+      for (const a of extra) shots.push(ball(a, CD.SHOT_SPEED, { life: 2, dmg: 1 }));
+      for (const sh of shots) { sh.dmg += s.heavy || 0; if (s.burst) sh.burst = true; if (s.heavy) sh.r = 2.6; }
+      if (s.rear) w.shots.push({ x: s.x + 2, y: by, r: 2, friendly: true, vx: -CD.SHOT_SPEED * 0.8, vy: 0, life: 1.4, dmg: 1 + (s.heavy || 0) });
+    }
     for (const sh of shots) w.shots.push({ x: bx, y: by, r: 2, friendly: true, ...sh });
     w.events.push({ name: s.weapon === 'harpoon' ? 'harpoon' : s.weapon === 'rockets' ? 'rocket' : 'shot', x: bx, y: by });
     return gun === CD.WEAPONS.cannon ? gun.cooldown * (s.fireMult || 1) : gun.cooldown;   // quick cannons: the cannons only

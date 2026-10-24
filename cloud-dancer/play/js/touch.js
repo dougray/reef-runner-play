@@ -16,7 +16,9 @@
   CD.initTouch = (input, { canvas, ship, onPause, onMute }) => {
     const $ = id => document.getElementById(id);
     const root = document.documentElement;
-    if ((window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window) root.classList.add('touch');
+    // A TV's web view claims a coarse pointer and touch events but has no touch points.
+    const touchable = navigator.maxTouchPoints === undefined || navigator.maxTouchPoints > 0;
+    if (touchable && ((window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window)) root.classList.add('touch');
     const zone = $('steer'), btn = $('btn-steam');
     let id = null, start = null, anchor = null;
     const k = () => CD.VIEW_W / canvas.getBoundingClientRect().width;

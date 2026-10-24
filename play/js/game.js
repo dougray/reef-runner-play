@@ -885,6 +885,7 @@
   // Phones and tablets: index.html adds .touch (and can add it late, on a first touch).
   const isTouch = () => document.documentElement.classList.contains('touch');
   const isPad = () => document.documentElement.classList.contains('pad');   // a controller or TV remote (js/pad.js)
+  const isRemote = () => document.documentElement.classList.contains('remote');   // a TV remote alone
 
   function drawUI() {
     if (game.state === 'menu') {
@@ -907,6 +908,9 @@
       if (isTouch()) {
         Art.text(ctx, 'Tap SAIL to set sail!', menuX(), 322, 30);
         Art.text(ctx, 'Hold FIRE to keep the cannon firing', menuX(), 358, 20, '#ffd34e');
+      } else if (isRemote()) {
+        Art.text(ctx, 'Press OK to set sail!', menuX(), 316, 22);
+        Art.text(ctx, 'OK: sail up  ·  Fast-forward: FIRE! (hold to keep firing)', menuX(), 346, 16, '#ffd34e');
       } else if (isPad()) {
         Art.text(ctx, 'Press A or OK to set sail!', menuX(), 316, 22);
         Art.text(ctx, 'A / OK / up: sail up  ·  B, X or Play/Pause: FIRE! (hold to keep firing)', menuX(), 346, 16, '#ffd34e');
@@ -1123,6 +1127,7 @@
       }
     },
     canExit: () => game.state === 'menu' && !game.paused,
+    sideways: () => game.state === 'playing' && !game.paused,
   };
   // Mouse: left button sails up, right button fires. Touch: a tap anywhere on the sea
   // sails up; firing has its own button.
