@@ -884,6 +884,7 @@
   }
   // Phones and tablets: index.html adds .touch (and can add it late, on a first touch).
   const isTouch = () => document.documentElement.classList.contains('touch');
+  const isPad = () => document.documentElement.classList.contains('pad');   // a controller or TV remote (js/pad.js)
 
   function drawUI() {
     if (game.state === 'menu') {
@@ -906,6 +907,9 @@
       if (isTouch()) {
         Art.text(ctx, 'Tap SAIL to set sail!', menuX(), 322, 30);
         Art.text(ctx, 'Hold FIRE to keep the cannon firing', menuX(), 358, 20, '#ffd34e');
+      } else if (isPad()) {
+        Art.text(ctx, 'Press A or OK to set sail!', menuX(), 316, 22);
+        Art.text(ctx, 'A / OK / up: sail up  ·  B, X or Play/Pause: FIRE! (hold to keep firing)', menuX(), 346, 16, '#ffd34e');
       } else {
         Art.text(ctx, 'Tap, click or press Space to set sail!', menuX(), 316, 22);
         Art.text(ctx, 'Space / click: sail up  ·  F / right-click: FIRE!', menuX(), 346, 16, '#ffd34e');
@@ -1030,9 +1034,20 @@
     if (t !== lastSafeTop) { lastSafeTop = t; resize(); }
   }
 
+  // `quality` drops the canvas below the screen's own resolution when frames run slow (a TV stick
+  // driving a 1080p screen, an old phone); see pace().
+  let quality = 1, slowT = 0, slowN = 0;
+  function pace(ms) {
+    if (game.state !== 'playing' || game.paused || ms > 250 || quality <= 0.5) return;
+    slowT += ms; slowN++;
+    if (slowT < 2000) return;
+    if (slowT / slowN > 25) { quality = Math.max(0.5, quality * 0.75); resize(); }   // under ~40 fps: 3/4 the pixels
+    slowT = slowN = 0;
+  }
+
   function resize() {
     const cw = window.innerWidth, ch = window.innerHeight;
-    view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    view.dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2) * quality);
     canvas.width = Math.round(cw * view.dpr);
     canvas.height = Math.round(ch * view.dpr);
     canvas.style.width = cw + 'px';
@@ -1087,8 +1102,28 @@
     if (e.code === 'KeyM') { Sfx.toggleMute(); return; }   // mutes without un-pausing
     if (game.paused) { e.preventDefault(); setPaused(false); return; }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); flap(); }
-    if (e.code === 'KeyF' || e.code === 'KeyX' || e.code === 'ArrowRight' || e.code === 'Enter') { e.preventDefault(); fire(); }
+    if (e.code === 'KeyF' || e.code === 'KeyX' || e.code === 'ArrowRight' || e.code === 'Enter') {
+      e.preventDefault();
+      if (game.state === 'playing') fireHeld = true;           // holding the key keeps firing, like the FIRE button
+      fire();
+    }
   });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'KeyF' || e.code === 'KeyX' || e.code === 'ArrowRight' || e.code === 'Enter') fireHeld = false;
+  });
+  // Controllers and TV remotes (js/pad.js): A, OK and up sail; B, X, Play/Pause, right and the
+  // shoulder buttons fire; Back and Menu pause. Back on the title screen leaves the app.
+  window.PAD = {
+    code: name => {
+      switch (name) {
+        case 'a': case 'up': return 'Space';
+        case 'b': case 'x': case 'right': case 'rb': case 'rt': case 'lb': case 'lt': return 'KeyF';
+        case 'back': case 'start': return 'Escape';
+        default: return null;
+      }
+    },
+    canExit: () => game.state === 'menu' && !game.paused,
+  };
   // Mouse: left button sails up, right button fires. Touch: a tap anywhere on the sea
   // sails up; firing has its own button.
   window.addEventListener('pointerdown', e => {
@@ -1169,6 +1204,7 @@
   let frames = 0;
   let redraw = true;               // draw the next frame even while paused
   function frame(now) {
+    pace(now - last);
     acc += Math.min(0.25, (now - last) / 1000);
     last = now;
     // ?god recordings set window.reefHold and drive time themselves with reefStep().
