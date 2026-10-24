@@ -1,0 +1,16 @@
+{
+  "name": "Cloud Dancer: Beyond the Reef",
+  "short_name": "Cloud Dancer",
+  "description": "A steampunk pirate airship shooter. Steer the Cloud Dancer through three layers of sky and broadside the King's Aerial Navy. Runs entirely on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#10182f",
+  "theme_color": "#2f7fd6",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

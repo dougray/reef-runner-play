@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud Dancer: a pirate airship shooter</title>
+<meta name="description" content="Steer the Cloud Dancer, a steampunk pirate airship, through three layers of sky and broadside the King's Aerial Navy. Free; plays in your browser, on your phone, and offline.">
+<meta name="theme-color" content="#2f7fd6">
+<link rel="icon" type="image/png" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:title" content="Cloud Dancer: Beyond the Reef">
+<meta property="og:description" content="A free steampunk pirate airship shooter. Four skies, four bosses, one cloud to hide in.">
+<meta property="og:image" content="img/boss.png">
+<style>
+  :root {
+    --bg: #10182f; --panel: #1c2846; --ink: #fcfcfc; --muted: #cfe8ff; --gold: #ffd34e;
+    --red: #d82838; --sea: #3c8cec; --wood: #4a2e14;
+    --pixel: "Trebuchet MS", "Verdana", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: var(--gold); }
+  a:focus-visible, .btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  img { max-width: 100%; height: auto; display: block; }
+
+  header { background: linear-gradient(#2f7fd6 0, #8fd0f7 45%, #cfeeff 62%, #4fb7d6 62.5%, #1d6aa0 100%); padding: 40px 0 0; }
+  .hero { display: grid; grid-template-columns: 1fr 1.25fr; gap: 28px; align-items: end; }
+  .logo { image-rendering: auto; width: min(100%, 420px); filter: drop-shadow(0 6px 0 rgba(16,16,40,.45)); }
+  h1 { font: 900 clamp(2.6rem, 7vw, 4.4rem)/1 var(--pixel); margin: 0; letter-spacing: .04em;
+    color: var(--gold); text-shadow: 4px 0 #1b1020, -4px 0 #1b1020, 0 4px #1b1020, 0 -4px #1b1020, 4px 4px #1b1020; }
+  .tag { font: 700 1.15rem/1.4 var(--pixel); margin: 14px 0 22px; color: #fff; text-shadow: 2px 2px #1b1020; }
+  .btn { display: inline-block; font: 800 1.2rem/1 var(--pixel); text-decoration: none; color: #1b1020;
+    background: var(--gold); border: 4px solid #1b1020; padding: 14px 26px; box-shadow: 0 6px 0 #1b1020; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #1b1020; }
+  .note { font-size: .9rem; color: #fff; margin: 18px 0 24px; padding: 8px 12px; background: rgba(16,16,40,.72); max-width: 34rem; }
+  .hero figure { margin: 0; }
+  .hero figure img { border: 4px solid #1b1020; border-bottom: 0; width: 100%; }
+
+  section.wrap { padding-top: 56px; padding-bottom: 8px; }
+  h2 { font: 800 1.6rem/1.2 var(--pixel); color: var(--gold); margin: 0 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 3px solid #2c2c5c; padding: 18px; }
+  .card h3 { font: 800 1.05rem/1.3 var(--pixel); margin: 0 0 8px; color: #fff; }
+  .card p { margin: 0; color: var(--muted); }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .shots figure { margin: 0; background: var(--panel); border: 3px solid #2c2c5c; }
+  .shots figcaption { padding: 10px 14px; color: var(--muted); font-size: .95rem; }
+  table { border-collapse: collapse; width: 100%; background: var(--panel); }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #2c2c5c; vertical-align: top; }
+  th { font-family: var(--pixel); color: #fff; width: 34%; }
+  footer { margin-top: 64px; padding: 28px 0 40px; background: #0a0a1c; color: var(--muted); font-size: .92rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 8px 28px; justify-content: space-between; }
+  footer p { margin: 0; }
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; }
+    header { padding-top: 28px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap hero">
+    <div>
+      <h1><img class="logo" src="logo.png" alt="Cloud Dancer: Beyond the Reef" width="480" height="484"></h1>
+      <p class="tag">A pirate airship shooter. Four skies. Four bosses. Clouds to hide in.</p>
+      <a class="btn" href="play/">CAST OFF</a>
+      <p class="note">Free. Plays in your browser on computers and phones, and installs to work offline.
+        No ads, no accounts, no tracking.</p>
+    </div>
+    <figure><img src="img/boss.png" width="960" height="540" alt="The Cloud Dancer airship firing at HMS Thunderer, a huge navy zeppelin, over the sea."></figure>
+  </div>
+</header>
+
+<main>
+  <section class="wrap" aria-labelledby="what">
+    <h2 id="what">What ye're in for</h2>
+    <div class="grid">
+      <div class="card"><h3>Fly free</h3><p>Steer anywhere in the sky with a thumb or the arrow keys. Your broadside cannons fire on their own; FULL STEAM rams anything in your way.</p></div>
+      <div class="card"><h3>Hide in the clouds</h3><p>Duck into a cloud bank and the navy loses its aim. So do you. In the Storm Wall, watch for lightning.</p></div>
+      <div class="card"><h3>The King's Aerial Navy</h3><p>Gyrocopters, zeppelins, balloon mines, flak towers, sky pikes and cloud lurkers across four skies.</p></div>
+      <div class="card"><h3>Four bosses</h3><p>HMS Thunderer, the Tempest Engine, Fort Sovereign and the Brass Kraken. Each warns you before it strikes.</p></div>
+      <div class="card"><h3>Plunder</h3><p>Chain shot, a harpoon, rockets and a Gatling gun. Spend run gold in the Sky Market after every boss.</p></div>
+      <div class="card"><h3>Your airship</h3><p>Bank your gold in the Hangar for envelope colours and patterns, sails, hull paint, a starting gun and a parrot.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap" aria-labelledby="look">
+    <h2 id="look">Have a look</h2>
+    <div class="shots">
+      <figure><img src="img/fight.png" width="960" height="540" loading="lazy" alt="The Cloud Dancer on FULL STEAM, trailing steam, with gyrocopters ahead."><figcaption>FULL STEAM over the Reef Skies.</figcaption></figure>
+      <figure><img src="img/storm.png" width="960" height="540" loading="lazy" alt="The airship hidden in a grey storm cloud while a lightning warning flickers."><figcaption>Hiding in the Storm Wall.</figcaption></figure>
+      <figure><img src="img/hangar.png" width="960" height="540" loading="lazy" alt="The Hangar: a red striped airship with a parrot, beside a list of choices."><figcaption>Fit her out in the Hangar.</figcaption></figure>
+      <figure><img src="img/market.png" width="960" height="540" loading="lazy" alt="The Sky Market listing upgrades and prices."><figcaption>The Sky Market opens after every boss.</figcaption></figure>
+      <figure><img src="img/phone.png" width="1688" height="780" loading="lazy" alt="The game on a phone held sideways, with pause and mute in the corners and a FULL STEAM button at the bottom right."><figcaption>On a phone: drag anywhere to steer, tap FULL STEAM to dash.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="wrap" aria-labelledby="how">
+    <h2 id="how">How to play</h2>
+    <table>
+      <tr><th scope="row">Keyboard</th><td>Arrows or WASD steer · the cannons fire on their own · Space dashes on FULL STEAM · P pauses · M mutes · H opens the Hangar from the title</td></tr>
+      <tr><th scope="row">Phone</th><td>Drag anywhere to steer (the ship follows your thumb's movement, so your thumb never hides it). Tap FULL STEAM to dash. Menus are all tap.</td></tr>
+      <tr><th scope="row">Tips</th><td>Hide in clouds from aimed fire. Shoot balloon mines near the navy. Coal refills steam; a wrench mends a heart. Every boss gives an extra life.</td></tr>
+      <tr><th scope="row">Install</th><td>On a phone, use your browser's Share or menu button and choose Add to Home Screen. On a computer, look for the install icon in the address bar.</td></tr>
+    </table>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Cloud Dancer © 2026 Doug Copeland. Code under the <a href="LICENSE">MIT License</a>.</p>
+    <p><a href="../">All the games</a> · <a href="privacy/">Privacy</a> · <a href="support/">Support</a></p>
+  </div>
+</footer>
+</body>
+</html>
