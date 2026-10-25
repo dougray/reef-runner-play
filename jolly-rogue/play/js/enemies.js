@@ -139,18 +139,18 @@
       w.pickups.push(k);
     };
     switch (e.type) {
-      case 'B': gun(); for (let i = 0; i < 20; i++) coin(w, x, y, (i - 9.5) * 14, -200 - w.rand() * 160); break;
+      case 'B': gun(); for (let i = 0; i < 40; i++) coin(w, x, y, (i - 19.5) * 7, -200 - w.rand() * 160); break;
       case 'f': gun(); break;
-      case 'n': for (let i = 0; i < 3; i++) coin(w, x, y, (i - 1) * 30, -200); break;
-      case '$': for (let i = 0; i < 8; i++) coin(w, x, y, (i - 3.5) * 22, -190 - w.rand() * 70); break;
+      case 'n': for (let i = 0; i < 6; i++) coin(w, x, y, (i - 2.5) * 20, -200); break;
+      case '$': for (let i = 0; i < 16; i++) coin(w, x, y, (i - 7.5) * 12, -190 - w.rand() * 70); break;
       case 'c': {
         const r = w.rand();
         if (r < 0.6) gun();
         else if (r < 0.8) { const k = JR.makePickup('r', x, y); k.vy = -150; w.pickups.push(k); }
-        else for (let i = 0; i < 5; i++) coin(w, x, y, (i - 2) * 25, -180);
+        else for (let i = 0; i < 8; i++) coin(w, x, y, (i - 3.5) * 18, -180);
         break;
       }
-      default: if (w.rand() < 0.4) coin(w, x, y, 0, -160);
+      default: for (let i = 0, n = 1 + (w.rand() < 0.5); i < n; i++) coin(w, x, y, (i - (n - 1) / 2) * 24, -160);
     }
   };
 })();
