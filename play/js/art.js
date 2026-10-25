@@ -6,6 +6,29 @@ window.Art = (() => {
   const INK = '#1c1512';
   const TAU = Math.PI * 2;
 
+  // ---------- painted sprites (js/painted.js: the user's art, cut by tools/cut_sheet.py) ----------
+  // Each object below draws its painted sprite when it has loaded, sized to the code-drawn shape it
+  // replaces, and falls back to the code drawing otherwise (and for tests without images).
+  const img = {};
+  function sprite(name) {
+    if (typeof Image === 'undefined' || !window.PAINTED || !window.PAINTED[name]) return null;
+    let im = img[name];
+    if (!im) { im = img[name] = new Image(); im.src = window.PAINTED[name]; }
+    return im.complete && im.naturalWidth ? im : null;
+  }
+  // Draw `im` with its bottom-centre at (cx, bottom), `h` tall.
+  function put(ctx, im, cx, bottom, h) {
+    const w = h * im.naturalWidth / im.naturalHeight;
+    ctx.drawImage(im, cx - w / 2, bottom - h, w, h);
+  }
+  // A warm glow where a gun is about to fire.
+  function muzzle(ctx, x, y, k) {
+    if (k <= 0) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 9 + k * 6);
+    g.addColorStop(0, `rgba(255,240,170,${0.9 * k})`); g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 9 + k * 6, 0, TAU); ctx.fill();
+  }
+
   function rr(ctx, x, y, w, h, r) {
     r = Math.min(r, w / 2, h / 2);
     ctx.moveTo(x + r, y);
@@ -39,6 +62,14 @@ window.Art = (() => {
 
   // Pirate ship from the app icon, facing right; origin at the hull's waterline middle.
   function ship(ctx, x, y, tilt, stretch, t, scale) {
+    const im = sprite('sloop');
+    if (im) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
+      ctx.scale(scale * (1 - stretch * 0.14), scale * (1 + stretch * 0.14));
+      put(ctx, im, 4, 20, 100);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(tilt);
@@ -134,6 +165,17 @@ window.Art = (() => {
 
   // Sandbar rising from the sea floor; `top` is the upper edge of the hitbox.
   function sandbar(ctx, x, top, w, far, s) {
+    const im = sprite('sandbar');
+    if (im) {
+      // The painted pillar (cropped to its sand, a touch wider than the hitbox): its top as a cap at
+      // natural shape, then the rest stretched down to the sea floor.
+      const iw = im.naturalWidth, ih = im.naturalHeight, sx = iw * 0.23, sw = iw * 0.56;
+      const dw = w * 1.12, k = dw / sw, left = x + w / 2 - dw / 2, capH = ih * 0.35;
+      ctx.drawImage(im, sx, 0, sw, capH, left, top - 4, dw, capH * k);
+      const y0 = top - 4 + capH * k - 1;
+      if (far > y0) ctx.drawImage(im, sx, capH, sw, ih * 0.5, left, y0, dw, far - y0);
+      return;
+    }
     const foot = far - Math.min(70, (far - top) * 0.45);   // where the dune flares out
     const outline = () => {
       ctx.beginPath();
@@ -187,6 +229,39 @@ window.Art = (() => {
 
   // Storm cloud bank hanging down from the sky; `bottom` is the lower edge of the hitbox.
   function stormCloud(ctx, x, bottom, w, s, t) {
+    const im = sprite('storm-cloud');
+    if (im) {
+      // The painted cloud's wide, puffy crown is the bank: stretched up off the top of the screen,
+      // and turned upside down for the underside so it's billowy right across the hitbox (the
+      // painting itself tapers to a thin funnel there). Rain falls from the code.
+      const iw = im.naturalWidth, ih = im.naturalHeight, sx = iw * 0.02, sw = iw * 0.95;
+      const dw = w * 1.25, k = dw / sw, left = x + w / 2 - dw / 2;
+      const capH = ih * 0.32 * k, capTop = bottom + 8 - capH;
+      // the bank above: the crown's puffs stacked up off the screen, overlapping, mirrored every
+      // other one so it doesn't read as a repeat
+      for (let y = capTop - capH * 0.45, i = 0; y > -capH - 40; y -= capH * 0.55, i++) {
+        ctx.save(); ctx.translate(left + dw / 2, y); ctx.scale(i % 2 ? -1 : 1, i % 3 === 1 ? -1 : 1);
+        ctx.drawImage(im, sx, 0, sw, ih * 0.32, -dw / 2, -capH / 2, dw, capH);
+        ctx.restore();
+      }
+      ctx.save(); ctx.translate(0, capTop + capH); ctx.scale(1, -1);
+      ctx.drawImage(im, sx, 0, sw, ih * 0.32, left, 0, dw, capH);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(200,220,255,0.55)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      for (let i = 0; i < 4; i++) {
+        const rx = x + ((i + 0.5) / 4) * w, ry = bottom + 4 + ((t * 160 + i * 23 + s.phase * 40) % 26);
+        ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 7); ctx.stroke();
+      }
+      if ((t + s.phase) % 2.6 < 0.14) {          // the lightning flicker stays
+        const bx = x + w * s.bolt;
+        for (const [col, lw] of [[INK, 7], ['#ffe14d', 3.5]]) {
+          ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineJoin = 'miter';
+          ctx.beginPath(); ctx.moveTo(bx, bottom - 6); ctx.lineTo(bx - 7, bottom + 10); ctx.lineTo(bx + 3, bottom + 12); ctx.lineTo(bx - 5, bottom + 28); ctx.stroke();
+        }
+        ctx.lineJoin = 'round';
+      }
+      return;
+    }
     const puffs = s.puffs.map(p => ({ x: x + p.u * w, y: bottom - p.r - p.lift, r: p.r }));
     // Billows down both sides so the bank reads as cloud, not a pillar.
     const sides = [];
@@ -290,6 +365,8 @@ window.Art = (() => {
     ctx.translate(x, y + sink * 60);
     ctx.rotate(sink ? -sink * 0.7 : Math.sin(t * 2) * 0.04);
     ctx.globalAlpha = sink > 0.7 ? Math.max(0, (1 - sink) / 0.3) : 1;
+    const im = sprite('frigate');
+    if (im) { put(ctx, im, -2, 21, 100); muzzle(ctx, -50, -6, charge || 0); ctx.restore(); return; }
     ctx.scale(-1, 1);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -343,6 +420,8 @@ window.Art = (() => {
     ctx.translate(x, y + sink * 70);
     ctx.rotate(sink ? sink * 0.6 : Math.sin(t * 1.6) * 0.03);
     ctx.globalAlpha = sink > 0.7 ? Math.max(0, (1 - sink) / 0.3) : 1;
+    const im = sprite('galleon');
+    if (im) { put(ctx, im, -2, 25, 131); muzzle(ctx, -62, -8, charge || 0); ctx.restore(); return; }
     ctx.scale(-1, 1);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.strokeStyle = INK; ctx.lineWidth = 3;
@@ -414,6 +493,8 @@ window.Art = (() => {
 
   // Comic-book starburst, optionally with a word in it ("KABOOM!").
   function burst(ctx, x, y, r, word, spin = 0) {
+    const boom = !word && sprite('explosion');
+    if (boom) { const d = r * 2.4; ctx.drawImage(boom, x - d / 2, y - d / 2, d, d); return; }
     const pts = 12;
     const star = (rad, fill) => {
       ctx.fillStyle = fill;
@@ -433,6 +514,8 @@ window.Art = (() => {
 
   // Seagull: a flapping "m" of two arcs.
   function gull(ctx, x, y, t, s = 1) {
+    const im = sprite('gull');
+    if (im) { put(ctx, im, x, y + 12 * s + Math.sin(t) * 2 * s, 24 * s); return; }
     const flap = Math.sin(t) * 5 * s;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const [col, lw] of [[INK, 4.5 * s], ['#ffffff', 2 * s]]) {
@@ -516,6 +599,13 @@ window.Art = (() => {
     ctx.translate(x, y + sink * 90);
     ctx.rotate(sink ? -sink * 0.5 : Math.sin(t * 1.3) * 0.025);
     ctx.globalAlpha = sink > 0.75 ? Math.max(0, (1 - sink) / 0.25) : 1;
+    const im = sprite('man-o-war');
+    if (im) {
+      put(ctx, im, -5, 38, 172);
+      muzzle(ctx, -100, -4, charge || 0);
+      if (broadside > 0) for (let k = 0; k < 6; k++) muzzle(ctx, -60 + k * 26, 6, broadside);   // the gun deck lighting up
+      ctx.restore(); return;
+    }
     ctx.scale(-1.4, 1.4);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
@@ -599,6 +689,8 @@ window.Art = (() => {
     ctx.save();
     ctx.translate(x, y + Math.sin(t * 3) * 3);
     ctx.rotate(Math.sin(t * 2) * 0.08);
+    const im = sprite('chest');
+    if (im) { put(ctx, im, 0, 18, 44); ctx.restore(); return; }
     const glow = ctx.createRadialGradient(0, -4, 2, 0, -4, 30);
     glow.addColorStop(0, 'rgba(255,225,77,0.55)'); glow.addColorStop(1, 'rgba(255,225,77,0)');
     ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, -4, 30, 0, TAU); ctx.fill();
@@ -623,6 +715,8 @@ window.Art = (() => {
     ctx.save();
     ctx.translate(x, y + Math.sin(t * 3 + 1) * 3);
     ctx.rotate(Math.sin(t * 2.3) * 0.12);
+    const im = sprite('barrel');
+    if (im) { put(ctx, im, 0, 18, 34); ctx.restore(); return; }
     ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
     ctx.fillStyle = '#a0612e';
     ctx.beginPath();
@@ -635,6 +729,8 @@ window.Art = (() => {
   }
 
   function cannonball(ctx, x, y, r = 6) {
+    const im = sprite('cannonball');
+    if (im) { ctx.drawImage(im, x - r * 1.15, y - r * 1.15, r * 2.3, r * 2.3); return; }
     ctx.fillStyle = '#26262b'; ctx.strokeStyle = INK; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#6a6a74';
@@ -656,6 +752,8 @@ window.Art = (() => {
 
   // Distant island with a fort, like the one in the logo. `y` is the horizon.
   function island(ctx, x, y) {
+    const im = sprite('island');
+    if (im) { put(ctx, im, x + 4, y + 10, 96); return; }
     ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     blob(ctx, [
       { x: x - 60, y: y - 14, w: 130, h: 16, r: 8 },

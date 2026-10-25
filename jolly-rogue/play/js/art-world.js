@@ -92,7 +92,24 @@
     }
   }
 
+  // The painted backdrops (js/painted.js, the user's art): one image per biome, already tiling
+  // sideways, filling the view's height and drifting slowly with the camera.
+  const painted = {};
+  function paintedBackdrop(ctx, camX, biome) {
+    if (!JR.PAINTED || !JR.PAINTED[biome] || typeof Image === 'undefined') return false;
+    let im = painted[biome];
+    if (!im) { im = painted[biome] = new Image(); im.src = JR.PAINTED[biome]; }
+    if (!im.complete || !im.naturalWidth) return false;
+    const w = im.naturalWidth * H() / im.naturalHeight;
+    const smooth = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = true;                  // painted art, not pixels
+    for (let x = wrap(-camX * 0.2, w, w); x < W(); x += w) ctx.drawImage(im, x, 0, w, H());
+    ctx.imageSmoothingEnabled = smooth;
+    return true;
+  }
+
   const drawBackdrop = (ctx, camX, t, biome) => {
+    if (paintedBackdrop(ctx, camX, biome)) return;
     if (!A().ready) return;
     if (biome === 'beach') {
       seaBackdrop(ctx, camX, t);
