@@ -16,6 +16,14 @@ window.Art = (() => {
     if (!im) { im = img[name] = new Image(); im.src = window.PAINTED[name]; }
     return im.complete && im.naturalWidth ? im : null;
   }
+  // Unpack every painted sprite at load, not the first time one appears mid-run (on a TV that
+  // first unpacking stalls the game for a moment).
+  if (typeof Image !== 'undefined' && window.PAINTED) {
+    for (const name of Object.keys(window.PAINTED)) {
+      const im = img[name] = new Image(); im.src = window.PAINTED[name];
+      if (im.decode) im.decode().catch(() => {});
+    }
+  }
   // Draw `im` with its bottom-centre at (cx, bottom), `h` tall.
   function put(ctx, im, cx, bottom, h) {
     const w = h * im.naturalWidth / im.naturalHeight;

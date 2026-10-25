@@ -95,6 +95,13 @@
   // The painted backdrops (js/painted.js, the user's art): one image per biome, already tiling
   // sideways, filling the view's height and drifting slowly with the camera.
   const painted = {};
+  // Unpack all four at load, not when a new level first scrolls in (that stalls a TV for a moment).
+  if (JR.PAINTED && typeof Image !== 'undefined') {
+    for (const biome of Object.keys(JR.PAINTED)) {
+      const im = painted[biome] = new Image(); im.src = JR.PAINTED[biome];
+      if (im.decode) im.decode().catch(() => {});
+    }
+  }
   function paintedBackdrop(ctx, camX, biome) {
     if (!JR.PAINTED || !JR.PAINTED[biome] || typeof Image === 'undefined') return false;
     let im = painted[biome];
