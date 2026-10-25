@@ -365,15 +365,12 @@
   };
 
   const GUN_LETTER = { chain: 'C', harpoon: 'H', rockets: 'R', gatling: 'G' };
-  // The wingman: a pirate gyrocopter (the navy's, repainted rust-red) facing the way you fly.
-  art.drawWingman = (ctx, wg, t) => {
-    const im = art.tinted('navy-gyro', '#b8452e', 'color');
-    if (!im) return;
-    ctx.save(); ctx.translate(wg.x + 8, wg.y + 7); ctx.scale(-0.8, 0.8);
-    ctx.drawImage(im, -GYRO.ax, -GYRO.ay, GYRO.w, GYRO.h);
-    rotorBlur(ctx, 2.1, -10.3, 13, t);
+  // A wingman: the pirate airship, smaller and in its own colours, flying in the squadron.
+  art.drawWingman = (ctx, wg, x, y, t) => {
+    const k = wg.w / CD.SHIP_W;
+    ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+    art.drawShip(ctx, { w: CD.SHIP_W, h: CD.SHIP_H, tilt: 0, inv: 0, dash: 0, look: wg.look }, 0, 0, t + wg.t);
     ctx.restore();
-    ctx.fillStyle = '#16141a'; ctx.beginPath(); ctx.moveTo(wg.x + 6, wg.y - 6); ctx.lineTo(wg.x + 12, wg.y - 4); ctx.lineTo(wg.x + 6, wg.y - 2); ctx.fill();   // a little black flag
   };
 
   art.drawPickup = (ctx, k, t) => {
@@ -582,7 +579,7 @@
       const col = i >= L.per ? 1 : 0, x0 = col ? L.col : 54, x1 = col ? W() - 54 : L.col - 14;
       const y = L.top + (i % L.per) * L.step, sel = i === m.row;
       if (sel) { ctx.fillStyle = 'rgba(217,164,65,.22)'; ctx.fillRect(x0 - 6, y - 6, x1 - x0 + 12, 12); }
-      const name = it.id === 'gun' ? `GUN: ${sel ? '< ' : ''}${CD.WEAPONS[m.gun()].name}${sel ? ' >' : ''}` : it.name;
+      const name = it.id === 'gun' ? `GUN: ${sel ? '< ' : ''}${CD.WEAPONS[m.gun()].name}${sel ? ' >' : ''}` : it.id === 'wingman' ? `WINGMAN ${(s.wingmen || 0) + 1}/4` : it.name;
       art.text(ctx, (sel ? '> ' : '') + name, x0, y, { size: 6.5, color: sel ? '#ffd34e' : '#f1e6cc' });
       if (it.id !== 'leave') { const c = m.price(it.id); art.text(ctx, c + 'G', x1, y, { size: 6.5, color: w.gold >= c ? '#7cfc7c' : '#ff8a7a', align: 'right' }); }
     });

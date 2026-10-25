@@ -14,7 +14,7 @@
 
   CD.ENEMIES = {
     gyro: {
-      w: 18, h: 12, hp: 2, score: 100, gold: 1,
+      w: 18, h: 12, hp: 2, score: 50, gold: 1,
       update(e, w, s, dt) {
         e.x -= 70 * dt;
         if (e.diver && e.x < CD.VIEW_W * 0.75) e.y += CD.clamp(s.y - e.y, -1, 1) * 60 * dt;
@@ -26,7 +26,7 @@
       },
     },
     zeppelin: {
-      w: 76, h: 36, hp: 12, score: 500, gold: 6, drops: 'weapon',
+      w: 76, h: 36, hp: 12, score: 250, gold: 3, drops: 'weapon',
       update(e, w, s, dt) {
         e.x -= (e.x > CD.VIEW_W - 110 ? 40 : 14) * dt;     // glides in, then crawls
         e.y = e.y0 + Math.sin(e.t * 0.9) * 4;
@@ -40,11 +40,11 @@
       },
     },
     mine: {
-      w: 16, h: 28, hp: 1, score: 50, gold: 1, blast: 30,
+      w: 16, h: 28, hp: 1, score: 25, gold: 1, blast: 30,
       update(e, w, s, dt) { e.x -= 34 * dt; e.y = e.y0 + Math.sin(e.t * 2 + e.x * 0.01) * 3; },
     },
     flak: {
-      w: 18, h: 18, hp: 4, score: 200, gold: 2,
+      w: 18, h: 18, hp: 4, score: 100, gold: 1,
       update(e, w, s, dt) {
         e.x -= 34 * dt;                                // sits on an island far below, scrolling with the sea
         if ((e.fire -= dt) <= 0 && e.x < CD.VIEW_W - 10 && e.x > 10) {
@@ -57,7 +57,7 @@
       },
     },
     pike: {
-      w: 22, h: 10, hp: 3, score: 250, gold: 3,
+      w: 22, h: 10, hp: 3, score: 125, gold: 2,
       update(e, w, s, dt) {
         // cruises, telegraphs (e.tell), then darts at where the ship was
         if (!e.state) { e.state = 'cruise'; e.timer = 1 + w.rand(); }
@@ -67,7 +67,7 @@
       },
     },
     lurker: {
-      w: 20, h: 14, hp: 3, score: 300, gold: 3,
+      w: 20, h: 14, hp: 3, score: 150, gold: 2,
       update(e, w, s, dt) {
         // rides a cloud: hidden (can't be hit) most of the time, pops out to fire
         e.x -= 34 * dt;
