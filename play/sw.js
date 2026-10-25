@@ -1,7 +1,7 @@
-// Service worker TEMPLATE. tools/build.py stamps 247427e805 and ["./", "index.html", "manifest.json", "js/art.js", "js/sfx.js", "js/pad.js", "js/game.js", "assets/logo-600.webp", "assets/music/australis-frontier-remix.m4a", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"] into
+// Service worker TEMPLATE. tools/build.py stamps d4fd25ccdf and ["./", "index.html", "manifest.json", "js/painted.js", "js/art.js", "js/sfx.js", "js/pad.js", "js/game.js", "assets/logo-600.webp", "assets/music/australis-frontier-remix.m4a", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"] into
 // dist/web/sw.js; the dev copy of the game never registers this file.
-const CACHE = 'reef-runner-247427e805';
-const SHELL = ["./", "index.html", "manifest.json", "js/art.js", "js/sfx.js", "js/pad.js", "js/game.js", "assets/logo-600.webp", "assets/music/australis-frontier-remix.m4a", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"];
+const CACHE = 'reef-runner-d4fd25ccdf';
+const SHELL = ["./", "index.html", "manifest.json", "js/painted.js", "js/art.js", "js/sfx.js", "js/pad.js", "js/game.js", "assets/logo-600.webp", "assets/music/australis-frontier-remix.m4a", "assets/icons/apple-touch-icon.png", "assets/icons/favicon-32.png", "assets/icons/favicon-64.png", "assets/icons/icon-192.png", "assets/icons/icon-512.png", "assets/icons/icon-maskable-512.png"];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
