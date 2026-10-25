@@ -19,9 +19,10 @@
     const dpr = window.devicePixelRatio || 1;
     const top = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
     // The view always fills the screen (`fit`, in CSS pixels); the canvas behind it has at most
-    // 1080p's pixels (plenty, even on a 4K TV), times `quality`, and is stretched to fit.
+    // 1080p's pixels (plenty, even on a 4K TV; 720p on a TV), times `quality`, and is stretched to fit.
     const fit = Math.min(window.innerWidth / CD.VIEW_W, (window.innerHeight - top) / CD.VIEW_H);
-    scale = Math.min(fit * dpr, 1920 / CD.VIEW_W) * quality;
+    const most = document.documentElement.classList.contains('tv') ? 1280 : 1920;   // a TV's graphics chip is slow
+    scale = Math.min(fit * dpr, most / CD.VIEW_W) * quality;
     canvas.width = Math.round(CD.VIEW_W * scale);
     canvas.height = Math.round(CD.VIEW_H * scale);
     canvas.style.width = Math.round(CD.VIEW_W * fit) + 'px';

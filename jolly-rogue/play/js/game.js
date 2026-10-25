@@ -36,7 +36,7 @@
     const phone = document.documentElement.classList.contains('touch');
     const shown = fit >= 2 && !phone ? Math.floor(fit) : fit;   // whole-number scaling keeps pixels crisp
     // The canvas has at most 1080p's pixels (plenty, even on a 4K TV) and is stretched to `shown`.
-    const cap = 1920 / viewW();
+    const cap = (document.documentElement.classList.contains('tv') ? 1280 : 1920) / viewW();   // a TV's graphics chip is slow
     scale = shown <= cap ? shown : Math.max(1, Math.floor(cap));
     canvas.width = Math.round(viewW() * scale);
     canvas.height = Math.round(JR.VIEW_H * scale);
