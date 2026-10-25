@@ -163,7 +163,8 @@
   .fleet a { color: #f5e2b5; text-decoration: none; padding: 4px 0; }
   .fleet a:hover { color: #ffd34e; }
   .fleet a[aria-current="page"] { color: #ffd34e; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
-  .fleet .fleet-home { margin-right: auto; font-weight: 800; color: #ffd34e; letter-spacing: .02em; }
+  .fleet .fleet-home { margin-right: auto; font-weight: 800; color: #ffd34e; letter-spacing: .02em; display: inline-flex; align-items: center; gap: 8px; }
+  .fleet .fleet-home img { width: 30px; height: auto; margin: -6px 0; }
   .fleet-more { max-width: 1040px; margin: 64px auto 0; padding: 0 16px; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
   .fleet-more h2 { font: 800 1.6rem/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; color: #ffd34e; margin: 0 0 18px; }
   .fleet-more .fleet-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
@@ -178,7 +179,7 @@
 </head>
 <body>
 <nav class="fleet" aria-label="All the games">
-  <a class="fleet-home" href="../">⚓ Plunder Bay Entertainment · All games</a>
+  <a class="fleet-home" href="../"><img src="../plunder-bay.webp" width="480" height="484" alt="">Plunder Bay Entertainment · All games</a>
   <a href="../reef-runner/" aria-current="page">Reef Runner</a>
   <a href="../jolly-rogue/">Jolly Rogue</a>
   <a href="../cloud-dancer/">Cloud Dancer</a>
