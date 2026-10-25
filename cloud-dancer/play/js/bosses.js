@@ -75,7 +75,7 @@
     },
     fort: {
       name: 'FORT SOVEREIGN', w: 110, h: 80, hp: 110, area: 'forts',
-      turrets: [[18, 10], [55, 2], [92, 10]],
+      turrets: [[28, 2], [53, 1], [80, 2]],           // the painted fort's three domes
       attacks: {
         volley: {
           start: b => { b.act = { n: angry(b) ? 3 : 2, gap: 0 }; },
