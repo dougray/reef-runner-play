@@ -16,7 +16,8 @@
   // FULL STEAM
   CD.STEAM_MAX = 100;
   CD.SHIELD_TIME = 1.5;
-  CD.CHEST_GOLD = 25;        // a treasure chest
+  CD.CHEST_GOLD = 15;        // a treasure chest
+  CD.LIFE_GOLD = 200;        // an extra life every this much gold in a run (series rule)
   CD.BURST_R = 16;           // exploding shells' reach      // the market's steam shield: safe this long after FULL STEAM
   CD.STEAM_REGEN = 14;       // per second
   CD.DASH_COST = 45;

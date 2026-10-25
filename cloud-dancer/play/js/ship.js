@@ -7,7 +7,7 @@
     x: 40, y: CD.VIEW_H / 2 - CD.SHIP_H / 2, w: CD.SHIP_W, h: CD.SHIP_H, vx: 0, vy: 0, tilt: 0,
     hearts: CD.MAX_HEARTS, maxHearts: CD.MAX_HEARTS, lives: CD.LIVES, inv: 0, dead: false,
     steamMax: CD.STEAM_MAX, fireMult: 1, magnet: false, pet: 'none', look: null,
-    spread: 0, heavy: 0, burst: false, rear: false, wingman: false, shield: false, gunRack: false,   // upgrades
+    spread: 0, heavy: 0, burst: false, rear: false, wingmen: 0, shield: false, gunRack: false,   // upgrades
     steam: CD.STEAM_MAX, dash: 0, dashCool: 0, fireCool: 0, t: 0, weapon: 'cannon', weaponT: 0,
   });
 

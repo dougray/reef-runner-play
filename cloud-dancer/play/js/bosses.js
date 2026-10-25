@@ -170,10 +170,10 @@
     // defeat
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     for (let i = 0; i < 6; i++) w.fx.push({ type: 'boom', x: cx + (w.rand() - 0.5) * b.w, y: cy + (w.rand() - 0.5) * b.h, t: 0.45 + i * 0.12, r: 18 });
-    for (let i = 0; i < 40; i++) w.pickups.push({ type: 'gold', x: cx - 50 + (i % 10) * 10, y: cy - 16 + Math.floor(i / 10) * 9, w: 10, h: 10, vy: -30 - (i % 4) * 10, t: 0 });
+    for (let i = 0; i < 20; i++) w.pickups.push({ type: 'gold', x: cx - 50 + (i % 10) * 10, y: cy - 16 + Math.floor(i / 10) * 9, w: 10, h: 10, vy: -30 - (i % 4) * 10, t: 0 });
     w.pickups.push({ type: 'chest', x: cx - 5, y: cy - 24, w: 10, h: 10, vy: -40, t: 0 });
     w.pickups.push({ type: 'weapon', gun: CD.PICKUP_GUNS[Math.floor(w.rand() * CD.PICKUP_GUNS.length)], x: cx - 5, y: cy, w: 10, h: 10, vy: -20, t: 0 });
-    if (!s.dead) { s.lives += 1; w.score += 1000; }       // no extra life for a ship that went down the same moment
+    if (!s.dead) { s.lives += 1; w.score += 500; }       // no extra life for a ship that went down the same moment
     w.bossesBeaten = (w.bossesBeaten || 0) + 1;
     w.lastBoss = b.name;
     emit(w, 'bossDown', cx, cy);

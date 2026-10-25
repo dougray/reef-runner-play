@@ -210,7 +210,7 @@
 
   function remember() {
     prev.clear();
-    for (const o of [ship, ...world.enemies, ...world.shots, ...world.pickups]) prev.set(o, { x: o.x, y: o.y });
+    for (const o of [ship, ...world.wings, ...world.enemies, ...world.shots, ...world.pickups]) prev.set(o, { x: o.x, y: o.y });
     if (world.boss) prev.set(world.boss, { x: world.boss.x, y: world.boss.y });
   }
 
@@ -232,11 +232,11 @@
       if (CD.sfx) CD.sfx.play(ev.name);
       if (ev.name === 'bossIn') { banner = { a: world.boss.name, b: 'BLOCKS YER COURSE!', t: 2.6 }; announce(world.boss.name.toLowerCase() + ' blocks your course!'); }
       if (ev.name === 'lifeLost' && !ship.dead) announce(`Hull breached! ${ship.lives} lives left.`);
-      if (ev.name === 'extraLife') { banner = { a: 'EXTRA LIFE!', b: '100 GOLD THIS RUN', t: 2 }; announce('Extra life for 100 gold.'); }
+      if (ev.name === 'extraLife') { banner = { a: 'EXTRA LIFE!', b: '200 GOLD THIS RUN', t: 2 }; announce('Extra life for 200 gold.'); }
     }
     if ((world.bossesBeaten || 0) > beatenSeen) {          // a boss went down: victory, then the Sky Market
       beatenSeen = world.bossesBeaten;
-      banner = { a: 'VICTORY!', b: '+1 LIFE   +1000', t: 2.8 }; marketIn = 2.6;
+      banner = { a: 'VICTORY!', b: '+1 LIFE   +500', t: 2.8 }; marketIn = 2.6;
       announce(`${world.lastBoss.toLowerCase()} is down! An extra life.`);
     }
     if (marketIn > 0 && (marketIn -= DT) <= 0 && !ship.dead) openMarket();
@@ -274,7 +274,7 @@
     for (const k of world.pickups) { const p = at(k); art.drawPickup(ctx, { ...k, ...p }, t); }
     for (const e of world.enemies) { const p = at(e); art.drawEnemy(ctx, e, p.x, p.y, t); }
     if (state !== 'title' && (!ship.dead || state !== 'over')) { const p = at(ship); art.drawShip(ctx, ship, p.x, p.y, t); }
-    if (world.wing && state !== 'title') art.drawWingman(ctx, world.wing, t);
+    if (state !== 'title') for (const wg of world.wings) { const p = at(wg); art.drawWingman(ctx, wg, p.x, p.y, t); }
     for (const b of world.shots) art.drawShot(ctx, { ...b, ...at(b) });
     art.drawCloudBanks(ctx, world.clouds, t, areaId);   // over the ship: hiding looks like hiding
     if (world.boss) { const p = at(world.boss); art.drawBoss(ctx, world.boss, p.x, p.y, t); }   // ...but a boss never hides

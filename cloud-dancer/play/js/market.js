@@ -12,7 +12,7 @@
     { id: 'heavy', name: 'HEAVY SHOT', base: 70, max: 2, note: 'CANNONBALLS HIT HARDER', apply: s => { s.heavy = (s.heavy || 0) + 1; } },
     { id: 'shells', name: 'EXPLODING SHELLS', base: 120, max: 1, note: 'CANNONBALLS BURST ON WHAT THEY HIT', apply: s => { s.burst = true; } },
     { id: 'rear', name: 'REAR GUNNER', base: 90, max: 1, note: 'A GUN FIRING BACK THE WAY YOU CAME', apply: s => { s.rear = true; } },
-    { id: 'wingman', name: 'WINGMAN', base: 150, max: 1, note: 'A PIRATE GYROCOPTER FLIES WITH YOU', apply: s => { s.wingman = true; } },
+    { id: 'wingman', name: 'WINGMAN', base: 150, max: 4, note: 'A PIRATE AIRSHIP JOINS YER SQUADRON (UP TO 4)', apply: s => { s.wingmen = (s.wingmen || 0) + 1; } },
     { id: 'shield', name: 'STEAM SHIELD', base: 80, max: 1, note: 'SAFE A MOMENT AFTER FULL STEAM', apply: s => { s.shield = true; } },
     { id: 'rack', name: 'GUN RACK', base: 100, max: 1, note: 'PICKUP GUNS LAST TILL YOU LOSE A LIFE', apply: s => { s.gunRack = true; } },
     { id: 'magnet', name: 'LODESTONE', base: 80, max: 1, note: 'EVERY COIN COUNTS DOUBLE', apply: s => { s.magnet = true; } },

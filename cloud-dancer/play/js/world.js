@@ -6,7 +6,7 @@
 
   CD.makeWorld = seed => ({
     rand: CD.rng(seed), shots: [], enemies: [], pickups: [], fx: [], events: [], clouds: [], bolts: [], hazards: [],
-    score: 0, gold: 0, distance: 0, spawnTimer: 1.2, wave: 0, t: 0, boss: null, nextBoss: CD.AREA_LEN - 60,
+    wings: [], score: 0, gold: 0, distance: 0, spawnTimer: 1.2, wave: 0, t: 0, boss: null, nextBoss: CD.AREA_LEN - 60,
   });
 
   CD.hurt = (s, w) => {
@@ -34,24 +34,24 @@
     if (d.blast) { CD.explode(w, s, cx, cy, d.blast); return; }
     w.fx.push({ type: 'boom', x: cx, y: cy, t: 0.45, r: Math.max(14, e.w * 0.4) });
     if (d.drops === 'weapon') drop(w, 'weapon', cx, cy, { gun: CD.PICKUP_GUNS[Math.floor(w.rand() * CD.PICKUP_GUNS.length)] });
-    // Gold by size: a gyrocopter drops a coin, a zeppelin bursts into six. Sometimes a chest too.
+    // Gold by size: a gyrocopter drops a coin, a zeppelin bursts into three. Sometimes a chest too.
     for (let i = 0; i < (d.gold || 1); i++) drop(w, 'gold', cx + (i - (d.gold - 1) / 2) * 7, cy + (i % 2) * 5, { vy: -20 - (i % 3) * 12 });
     const r = w.rand();
     if (r < 0.08) drop(w, 'repair', cx, cy);
     else if (r < 0.18) drop(w, 'coal', cx, cy);
-    else if (r < (d.gold >= 6 ? 0.38 : 0.22)) drop(w, 'chest', cx, cy - 6);
+    else if (r < (d.gold >= 3 ? 0.3 : 0.16)) drop(w, 'chest', cx, cy - 6);
   };
 
   CD.collect = (w, s, k) => {
     if (k.type === 'gold') {
       const before = w.gold;
-      w.gold += s.magnet ? 2 : 1; w.score += 10;                                  // the Lodestone: gold counts double
-      if (Math.floor(w.gold / 100) > Math.floor(before / 100)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }   // series rule: every 100 gold in a run
+      w.gold += s.magnet ? 2 : 1; w.score += 5;                                  // the Lodestone: gold counts double
+      if (Math.floor(w.gold / CD.LIFE_GOLD) > Math.floor(before / CD.LIFE_GOLD)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }   // series rule: every LIFE_GOLD in a run
     }
-    else if (k.type === 'chest') {                                                 // a treasure chest: 25 gold
+    else if (k.type === 'chest') {                                                 // a treasure chest: CHEST_GOLD
       const before = w.gold;
-      w.gold += CD.CHEST_GOLD; w.score += 100;
-      if (Math.floor(w.gold / 100) > Math.floor(before / 100)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }
+      w.gold += CD.CHEST_GOLD; w.score += 50;
+      if (Math.floor(w.gold / CD.LIFE_GOLD) > Math.floor(before / CD.LIFE_GOLD)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }
     }
     else if (k.type === 'coal') s.steam = Math.min(s.steamMax, s.steam + 40);
     else if (k.type === 'repair') s.hearts = Math.min(s.maxHearts, s.hearts + 1);
@@ -69,17 +69,34 @@
     }
   };
 
-  // The wingman: a pirate gyrocopter that keeps station above and behind the ship and fires ahead.
+  // The squadron: up to four small pirate airships, each bought at the Sky Market, flying in
+  // formation behind the ship (above, below, then further back) and firing ahead. Each flies its
+  // own envelope colours.
+  CD.WING_W = 20; CD.WING_H = 12;
+  CD.WING_SLOTS = [[-16, -20], [-16, 30], [-38, -42], [-38, 52]];
+  const WING_LOOKS = [
+    { envelope: 'red', hull: 'oak', pattern: 'plain', sail: 'black' },
+    { envelope: 'navy', hull: 'ebony', pattern: 'plain', sail: 'black' },
+    { envelope: 'black', hull: 'crimson', pattern: 'plain', sail: 'red' },
+    { envelope: 'gold', hull: 'ebony', pattern: 'stripes', sail: 'swords' },
+  ];
   CD.updateWingman = (w, s, dt) => {
-    if (!s.wingman || s.dead) { w.wing = null; return; }
-    const wg = w.wing || (w.wing = { x: s.x - 10, y: s.y - 24, cool: 0.3, t: 0 });
-    wg.t += dt;
-    const tx = s.x - 6, ty = Math.max(4, s.y - 26) + Math.sin(wg.t * 2.2) * 3;
-    wg.x += (tx - wg.x) * Math.min(1, dt * 4); wg.y += (ty - wg.y) * Math.min(1, dt * 4);
-    if ((wg.cool -= dt) <= 0) {
-      wg.cool = 0.5;
-      w.shots.push({ x: wg.x + 16, y: wg.y + 8, r: 1.8, friendly: true, vx: CD.SHOT_SPEED, vy: 0, life: 1.6, dmg: 1, wing: true });
+    const n = s.dead ? 0 : Math.min(s.wingmen || 0, CD.WING_SLOTS.length);
+    w.wings.length = Math.min(w.wings.length, n);
+    while (w.wings.length < n) {
+      const i = w.wings.length, [ox, oy] = CD.WING_SLOTS[i];
+      w.wings.push({ x: s.x + ox - 30, y: s.y + oy, w: CD.WING_W, h: CD.WING_H, cool: 0.3 + i * 0.12, t: i * 0.7, look: WING_LOOKS[i] });
     }
+    w.wings.forEach((wg, i) => {
+      wg.t += dt;
+      const [ox, oy] = CD.WING_SLOTS[i];
+      const tx = s.x + ox, ty = CD.clamp(s.y + oy + Math.sin(wg.t * 2.2) * 3, 2, CD.VIEW_H - wg.h - 2);
+      wg.x += (tx - wg.x) * Math.min(1, dt * 4); wg.y += (ty - wg.y) * Math.min(1, dt * 4);
+      if ((wg.cool -= dt) <= 0) {
+        wg.cool = 0.5;
+        w.shots.push({ x: wg.x + wg.w, y: wg.y + wg.h * 0.6, r: 1.8, friendly: true, vx: CD.SHOT_SPEED, vy: 0, life: 1.6, dmg: 1, wing: true });
+      }
+    });
   };
 
   // The ship's hitbox is a bit smaller than its art (series rule: generous).
