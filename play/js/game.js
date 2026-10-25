@@ -1051,7 +1051,9 @@
 
   function resize() {
     const cw = window.innerWidth, ch = window.innerHeight;
-    view.dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2) * quality);
+    // A TV draws at most 1280 pixels across (its graphics chip can't fill 1080p at 60 fps).
+    const tvCap = document.documentElement.classList.contains('tv') ? 1280 / cw : Infinity;
+    view.dpr = Math.max(Math.min(1, tvCap), Math.min(window.devicePixelRatio || 1, 2, tvCap) * quality);
     canvas.width = Math.round(cw * view.dpr);
     canvas.height = Math.round(ch * view.dpr);
     canvas.style.width = cw + 'px';

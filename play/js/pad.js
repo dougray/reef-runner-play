@@ -50,8 +50,9 @@
 
   const cap = window.Capacitor;
   const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
-  // A TV (the app, with no touch screen) shows the remote's buttons in its hints from the start.
-  if (native && !navigator.maxTouchPoints) { padMode(); kind('remote'); }
+  // A TV (the app, with no touch screen) shows the remote's buttons in its hints from the start,
+  // and the page gets the class "tv" so the game can draw fewer pixels (TV chips are slow).
+  if (native && !navigator.maxTouchPoints) { padMode(); kind('remote'); document.documentElement.classList.add('tv'); }
 
   // Browser controllers: the standard mapping's buttons in order, then the left stick.
   const BUTTONS = ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'back', 'start', 'ls', 'rs', 'up', 'down', 'left', 'right'];
