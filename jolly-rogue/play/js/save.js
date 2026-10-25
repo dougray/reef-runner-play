@@ -57,7 +57,7 @@
   JR.defaultProfile = () => {
     const equip = {}, owned = {};
     for (const r of JR.CATALOG) { equip[r.key] = r.options[0].id; owned[r.key] = []; }
-    return { v: 1, gold: 0, best: 0, equip, owned, fresh: true, migrated: VERSION };
+    return { v: 1, gold: 0, best: 0, voyages: 0, equip, owned, fresh: true, migrated: VERSION };
   };
 
   JR.owns = (pr, key, id) => {
@@ -85,6 +85,16 @@
     pr.fresh = false;
   };
 
+  // The voyage ends with the last area's boss (the Pirate Ship). Each finished voyage pays a
+  // captain's share that grows every time round, and the save counts them.
+  JR.voyageEnds = seg => seg % JR.BIOMES.length === JR.BIOMES.length - 1;
+  JR.finishVoyage = (pr, p, seg) => {
+    const voyage = Math.floor(seg / JR.BIOMES.length) + 1, bonus = 250 * voyage;
+    JR.addGold(p, bonus);
+    pr.voyages = Math.max(pr.voyages || 0, voyage);
+    return { voyage, bonus };
+  };
+
   JR.loadProfile = store => {
     const pr = JR.defaultProfile();
     let raw = null, oldBest = 0;
@@ -105,6 +115,7 @@
     }
     pr.best = Math.max(oldBest, +saved.best || 0);
     pr.fresh = !!saved.fresh;
+    pr.voyages = Math.max(0, Math.floor(+saved.voyages || 0));
     for (const r of JR.CATALOG) {
       const o = saved.owned && saved.owned[r.key];
       pr.owned[r.key] = Array.isArray(o) ? o.filter(id => option(r.key, id)) : [];
