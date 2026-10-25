@@ -191,6 +191,20 @@
     }
   };
 
+  // The downward stab: the blade's damage plus one, a bounce, and the double jump back.
+  function stab(e, p, w) {
+    const blade = JR.WEAPONS[p.melee] || JR.WEAPONS.cutlass;
+    damage(e, (blade.dmg + 1) * p.meleeMult, p, w);
+    p.vy = JR.JUMP_VEL * JR.STOMP_BOUNCE * (p.jumpMult || 1);
+    p.jumpHeld = true;                       // holding jump through the stab bounces higher
+    p.usedDouble = false;
+    p.onGround = false;
+    p.inv = Math.max(p.inv, 0.12);           // not hurt by the enemy just stabbed
+    p.strike = 'air2'; p.slash = 0.18; p.lastStrike = p.clock;
+    w.fx.push({ type: 'swoosh', x: p.x + p.w / 2, y: p.y + p.h, dir: p.facing, t: 0.14 });
+    emit(w, 'slash', e.x, e.y);
+  }
+
   const damage = (JR.damage = (e, dmg, p, w) => {
     e.hp -= dmg;
     e.flash = 0.1;
@@ -274,7 +288,15 @@
       return false;
     });
 
-    for (const e of w.enemies) if (e.hp > 0 && !e.prop && JR.overlap(e, p)) JR.hurt(p, w);
+    // Landing on an enemy stabs it with the sword (the user's idea): falling, feet near its top. The
+    // pirate bounces up with the double jump restored, so stabs chain across a crew. Anything else
+    // that touches the pirate still hurts.
+    for (const e of w.enemies) {
+      if (e.hp <= 0 || !JR.overlap(e, p)) continue;
+      const feet = p.y + p.h;
+      if (p.vy > 0 && feet - e.y <= JR.STOMP_DEPTH + p.vy / 60) { stab(e, p, w); continue; }
+      if (!e.prop) JR.hurt(p, w);
+    }
 
     w.pickups = w.pickups.filter(k => {
       if (!JR.overlap(k, p)) return true;

@@ -21,7 +21,7 @@
     gun: (p, shop) => { p.gun = shop.gun(); p.grace = p.graceMax; p.mag = 0; },
     reload: p => { p.reloadMult *= 0.85; },
     blade: p => { p.meleeMult *= 1.25; },
-    magnet: p => { p.magnet = 36; },
+    magnet: p => { p.magnet = 84; },          // about 5 tiles; the monkey reaches 7
   };
 
   JR.makeShop = p => {
