@@ -67,7 +67,7 @@
   const STORE = store || { getItem: () => null, setItem() {} };
   const profile = JR.loadProfile(STORE);
   let best = profile.best;
-  let quarters = null, quartersThen = 'title', banked = 0, shop = null, shopIn = 0;
+  let quarters = null, quartersThen = 'title', banked = 0, shop = null, shopIn = 0, endIn = 0, voyage = null, endRow = 0;
 
   const input = JR.newInput();
   let state = 'title', t = 0, overT = 0, pauseRow = 0, contRow = 0;
@@ -99,7 +99,7 @@
     camX = prevCam = 0;
     look = 0;
     nextSpawn = 0;
-    seg = -1; banner = null; shake = 0; arena = null; boss = null; shop = null; shopIn = 0;
+    seg = -1; banner = null; shake = 0; arena = null; boss = null; shop = null; shopIn = 0; endIn = 0; voyage = null;
   }
   newRun();
 
@@ -122,6 +122,14 @@
     sfx.play('start');
     announce('Back into the fight with three lives.');
   }
+  // The end of a voyage: sail on into the next, harder lap (the Black Market first), or retire.
+  function answerEnding(sailOn) {
+    if (overT < 2) return;                                   // let the moment land first
+    if (sailOn) { shop = JR.makeShop(player); setState('shop'); sfx.play('area'); return; }
+    quitToTitle();
+    announce(`Retired rich. ${banked} gold to your chest.`);
+  }
+  const endLayout = W => ({ sail: { x: W / 2 - 74, y: 170, w: 68, h: 14 }, retire: { x: W / 2 + 6, y: 170, w: 68, h: 14 } });
   // The Continue? buttons, in the on-screen view's coordinates.
   const contLayout = W => ({ yes: { x: W / 2 - 62, y: 128, w: 56, h: 14 }, no: { x: W / 2 + 6, y: 128, w: 56, h: 14 } });
 
@@ -145,6 +153,7 @@
 
   // Pause menu: resume, or quit to the title (the run's gold still goes into the chest).
   function quitToTitle() {
+    banked = player.gold;
     JR.bank(profile, player.gold, score());
     JR.saveProfile(STORE, profile);
     best = Math.max(best, profile.best);
@@ -193,6 +202,14 @@
       input.jumpPressed = input.firePressed = false;
       return;
     }
+    if (state === 'ending') {
+      if (/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|KeyW|KeyS|KeyA|KeyD)$/.test(code)) endRow = 1 - endRow;
+      else if (/^(Enter|Space|KeyX|KeyJ|KeyZ)$/.test(code)) answerEnding(endRow === 0);
+      else if (code === 'Escape') endRow = 1;
+      else if (code === 'KeyM') sfx.toggleMute();
+      input.jumpPressed = input.firePressed = false;
+      return;
+    }
     if (state === 'continue') {
       if (/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|KeyW|KeyS|KeyA|KeyD)$/.test(code)) contRow = 1 - contRow;
       else if (/^(Enter|Space|KeyX|KeyJ|KeyZ)$/.test(code)) answerContinue(contRow === 0);
@@ -216,7 +233,7 @@
   // Quarters; Back pauses or backs out, and leaves the app from the title; Menu starts or pauses.
   window.PAD = {
     code: name => {
-      const menu = state === 'quarters' || state === 'shop' || state === 'continue';
+      const menu = state === 'quarters' || state === 'shop' || state === 'continue' || state === 'ending';
       const front = state === 'title' || (state === 'over' && overT > 0.8);
       switch (name) {
         case 'up': return 'ArrowUp';
@@ -248,6 +265,12 @@
 
   function tap(x, y) {
     const near = (yy, line) => Math.abs(yy - line) <= 7;
+    if (state === 'ending') {
+      const L = endLayout(viewW());
+      if (JR.hit(L.sail, x, y)) answerEnding(true);
+      else if (JR.hit(L.retire, x, y)) answerEnding(false);
+      return;
+    }
     if (state === 'continue') {
       const L = contLayout(viewW());
       if (JR.hit(L.yes, x, y)) answerContinue(true);
@@ -293,7 +316,7 @@
 
   function step() {
     t += DT;
-    if (state === 'over' || state === 'continue') overT += DT;
+    if (state === 'over' || state === 'continue' || state === 'ending') overT += DT;
     if (quarters) quarters.msgT -= DT;
     if (shop) shop.msgT -= DT;
     if (state !== 'play') { input.jumpPressed = input.firePressed = false; return; }
@@ -350,14 +373,24 @@
 
     world.fx = world.fx.filter(f => (f.delay > 0 ? (f.delay -= DT) || true : (f.t -= DT) > 0));
     if (arena && boss && boss.hp <= 0) {
+      const finale = JR.voyageEnds(arena.seg);
       arena.done = true; arena = null; boss = null;
       banner = { a: 'VICTORY!', b: '+1 LIFE   +1000', t: 2.6 };
-      announce('Victory! Plus one life. The Black Market opens next.');
-      shopIn = 2.4;                                            // then the Black Market opens
+      if (finale) { announce('Victory! The voyage is complete.'); endIn = 2.4; }   // then the ending
+      else { announce('Victory! Plus one life. The Black Market opens next.'); shopIn = 2.4; }
     }
     shake = Math.max(0, shake - DT);
     if (banner) banner.t -= DT;
 
+    if (endIn > 0 && (endIn -= DT) <= 0 && !player.dead) {
+      voyage = JR.finishVoyage(profile, player, seg);
+      JR.saveProfile(STORE, profile);
+      setState('ending');
+      overT = 0;
+      endRow = 0;
+      sfx.play('bossDown');
+      announce(`Voyage ${voyage.voyage} complete! Captain's share: ${voyage.bonus} gold. Sail on, or retire?`);
+    }
     if (shopIn > 0 && (shopIn -= DT) <= 0 && !player.dead) {
       shop = JR.makeShop(player);
       setState('shop');
@@ -459,7 +492,9 @@
         say('ARROWS/WASD MOVE + AIM   SPACE/Z JUMP   X/J FIRE', 196, 1, '#fce4a8');
         say('JUMP ON A FOE TO STAB IT  ·  DOWN+JUMP DROPS THROUGH DOCKS', 207, 1, '#fce4a8');
       }
-      if (best) art.text(ctx, 'HI ' + String(best).padStart(6, '0'), W - 5, 8, { align: 'right', color: '#bcdcfc' });
+      const hiX = W - (JR.touchMode() ? 26 : 5);                // clear of the sound button on phones
+      if (best) art.text(ctx, 'HI ' + String(best).padStart(6, '0'), hiX, 8, { align: 'right', color: '#bcdcfc' });
+      if (profile.voyages) art.text(ctx, 'VOYAGES ' + profile.voyages, hiX, 18, { align: 'right', color: '#fcc838' });
       return;
     }
     art.drawHud(ctx, player, score(), best, hudInset);
@@ -481,6 +516,27 @@
       ink('PAUSED', H / 2 - 14, 3);
       ink((pauseRow === 0 ? '> ' : '  ') + 'RESUME', H / 2 + 14, 1, pauseRow === 0 ? '#b8463e' : '#3e2731');
       ink((pauseRow === 1 ? '> ' : '  ') + 'QUIT TO TITLE (KEEP GOLD)', H / 2 + 28, 1, pauseRow === 1 ? '#b8463e' : '#3e2731');
+    } else if (state === 'ending') {
+      ctx.fillStyle = `rgba(16,16,40,${Math.min(0.55, overT)})`; ctx.fillRect(0, 0, W, H);
+      if (JR.atlas.ready) for (let i = 0; i < 26; i++) {           // a shower of gold
+        const cx = (i * 61 + 17) % W, cy = ((overT * (38 + (i % 5) * 9) + i * 41) % (H + 24)) - 12;
+        JR.atlas.draw(ctx, 'coin', t + i * 0.13, cx, cy);
+      }
+      const v = voyage || { voyage: 1, bonus: 0 };
+      JR.ui.panel(ctx, 'board', W / 2 - 150, 10, 300, 196);
+      if (v.voyage === 1) { say('THE SEVEN SEAS', 32, 2, '#fcc838'); say('ARE YERS!', 52, 2); }
+      else { say(`VOYAGE ${v.voyage}`, 32, 2, '#fcc838'); say('COMPLETE!', 52, 2); }
+      say('FOUR AREAS. FOUR BOSSES SUNK.', 76, 1, '#fce4a8');
+      say('EVERY PORT NOW KNOWS YER NAME, CAPTAIN.', 88, 1, '#fce4a8');
+      say(`SAILORS ${player.kills}   BOSSES ${player.bosses || 0}   SCORE ${score()}`, 108);
+      say(`CAPTAIN'S SHARE  +${v.bonus} GOLD`, 122, 1, '#fcc838');
+      say(`${player.gold} GOLD IN YER POCKETS`, 134, 1, '#fcc838');
+      if (overT > 2) {
+        const L = endLayout(W);
+        art.button(ctx, L.sail, 'SAIL ON', endRow === 0 ? '#7cfc7c' : '#fcc838');
+        art.button(ctx, L.retire, 'RETIRE', endRow === 1 ? '#7cfc7c' : '#fcc838');
+        say(endRow === 0 ? 'HARDER SEAS, TOUGHER BOSSES, MORE GOLD' : 'BANK YER GOLD AND HEAD FOR PORT', 156, 1, '#bcdcfc');
+      }
     } else if (state === 'continue') {
       ctx.fillStyle = `rgba(16,16,40,${Math.min(0.5, overT)})`; ctx.fillRect(0, 0, W, H);
       JR.ui.panel(ctx, 'board', W / 2 - 120, 34, 240, 128);
@@ -507,7 +563,7 @@
   // Which tune fits right now: the area's, the boss theme, or none after Davy Jones.
   function music() {
     if (state === 'over' || state === 'continue') JR.music.stop();
-    else if (state === 'quarters' || state === 'title') JR.music.play('town');
+    else if (state === 'quarters' || state === 'title' || state === 'ending') JR.music.play('town');
     else if (boss || arena) JR.music.play('boss');
     else JR.music.play(level.biomeAt(Math.max(0, Math.floor((camX + JR.VIEW_W / 2) / JR.TILE))));
     JR.music.update();
@@ -535,7 +591,7 @@
     window.jr = {
       get state() { return state; }, get player() { return player; }, get world() { return world; },
       get level() { return level; }, get camX() { return camX; }, get boss() { return boss; }, input,
-      get profile() { return profile; }, get shop() { return shop; }, get quarters() { return quarters; }, openQuarters, closeQuarters,
+      get profile() { return profile; }, get voyage() { return voyage; }, get shop() { return shop; }, get quarters() { return quarters; }, openQuarters, closeQuarters,
       key: code => window.dispatchEvent(new KeyboardEvent('keydown', { code })),
       start, tap, step(n = 1) { for (let i = 0; i < n; i++) step(); alpha = 1; render(); },
       // Jump the run ahead to a column (for screenshots of later areas).
