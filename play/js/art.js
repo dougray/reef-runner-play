@@ -21,6 +21,20 @@ window.Art = (() => {
     const w = h * im.naturalWidth / im.naturalHeight;
     ctx.drawImage(im, cx - w / 2, bottom - h, w, h);
   }
+  // The storm cloud's puffy crown, once, with its cut lower edge faded out so stacked copies blend.
+  let crown = null;
+  function cloudCrown(im) {
+    if (crown) return crown;
+    const iw = im.naturalWidth, ih = Math.round(im.naturalHeight * 0.36);
+    const c = document.createElement('canvas'); c.width = iw; c.height = ih;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0, iw, ih, 0, 0, iw, ih);
+    g.globalCompositeOperation = 'destination-in';
+    const f = g.createLinearGradient(0, 0, 0, ih);
+    f.addColorStop(0, '#000'); f.addColorStop(0.7, '#000'); f.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = f; g.fillRect(0, 0, iw, ih);
+    return (crown = c);
+  }
   // A warm glow where a gun is about to fire.
   function muzzle(ctx, x, y, k) {
     if (k <= 0) return;
@@ -239,13 +253,14 @@ window.Art = (() => {
       const capH = ih * 0.32 * k, capTop = bottom + 8 - capH;
       // the bank above: the crown's puffs stacked up off the screen, overlapping, mirrored every
       // other one so it doesn't read as a repeat
-      for (let y = capTop - capH * 0.45, i = 0; y > -capH - 40; y -= capH * 0.55, i++) {
-        ctx.save(); ctx.translate(left + dw / 2, y); ctx.scale(i % 2 ? -1 : 1, i % 3 === 1 ? -1 : 1);
-        ctx.drawImage(im, sx, 0, sw, ih * 0.32, -dw / 2, -capH / 2, dw, capH);
+      const cr = cloudCrown(im), ch = capH * 1.12;
+      for (let y = capTop + ch * 0.15, i = 0; y > -ch - 40; y -= ch * 0.42, i++) {   // each copy's solid part covers the faded edge below it
+        ctx.save(); ctx.translate(left + dw / 2, y); ctx.scale(i % 2 ? -1 : 1, 1);
+        ctx.drawImage(cr, -dw / 2, -ch / 2, dw, ch);
         ctx.restore();
       }
       ctx.save(); ctx.translate(0, capTop + capH); ctx.scale(1, -1);
-      ctx.drawImage(im, sx, 0, sw, ih * 0.32, left, 0, dw, capH);
+      ctx.drawImage(cr, left, 0, dw, ch);
       ctx.restore();
       ctx.strokeStyle = 'rgba(200,220,255,0.55)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
       for (let i = 0; i < 4; i++) {
