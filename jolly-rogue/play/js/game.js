@@ -70,7 +70,7 @@
   let quarters = null, quartersThen = 'title', banked = 0, shop = null, shopIn = 0;
 
   const input = JR.newInput();
-  let state = 'title', t = 0, overT = 0, pauseRow = 0;
+  let state = 'title', t = 0, overT = 0, pauseRow = 0, contRow = 0;
   const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;   // no screen shake
   const statusEl = document.getElementById('status');
   const announce = msg => { statusEl.textContent = ''; setTimeout(() => { statusEl.textContent = msg; }, 50); };
@@ -102,6 +102,28 @@
     seg = -1; banner = null; shake = 0; arena = null; boss = null; shop = null; shopIn = 0;
   }
   newRun();
+
+  function gameOver() {
+    setState('over');
+    overT = 0;
+    // Everything picked up this run goes into the treasure chest for the Captain's Quarters.
+    const prevBest = best;
+    banked = player.gold;
+    JR.bank(profile, player.gold, score());
+    JR.saveProfile(STORE, profile);
+    best = Math.max(profile.best, prevBest);
+    announce(`Davy Jones takes ye. Score ${score()}, ${banked} gold to your chest.`);
+  }
+  function answerContinue(yes) {
+    if (overT < 0.6) return;                                 // a mashed jump doesn't answer for you
+    if (!yes) { gameOver(); return; }
+    JR.continueRun(player);
+    setState('play');
+    sfx.play('start');
+    announce('Back into the fight with three lives.');
+  }
+  // The Continue? buttons, in the on-screen view's coordinates.
+  const contLayout = W => ({ yes: { x: W / 2 - 62, y: 128, w: 56, h: 14 }, no: { x: W / 2 + 6, y: 128, w: 56, h: 14 } });
 
   const score = () => Math.floor(camX / JR.TILE) + player.kills * 50 + player.gold * 10 + (player.bosses || 0) * 1000;
 
@@ -171,6 +193,15 @@
       input.jumpPressed = input.firePressed = false;
       return;
     }
+    if (state === 'continue') {
+      if (/^(ArrowUp|ArrowDown|ArrowLeft|ArrowRight|KeyW|KeyS|KeyA|KeyD)$/.test(code)) contRow = 1 - contRow;
+      else if (/^(Enter|Space|KeyX|KeyJ|KeyZ)$/.test(code)) answerContinue(contRow === 0);
+      else if (code === 'KeyY') answerContinue(true);
+      else if (code === 'KeyN' || code === 'Escape') contRow = 1;      // Back only moves to NO
+      else if (code === 'KeyM') sfx.toggleMute();
+      input.jumpPressed = input.firePressed = false;
+      return;
+    }
     if (code === 'KeyC' && (state === 'title' || (state === 'over' && overT > 0.8))) { openQuarters('title'); return; }
     if (state === 'paused' && /^(ArrowUp|ArrowDown|KeyW|KeyS)$/.test(code)) { pauseRow = 1 - pauseRow; return; }
     if (state === 'paused' && /^(Enter|Space|KeyX|KeyJ)$/.test(code)) { if (pauseRow) quitToTitle(); else setState('play'); input.jumpPressed = input.firePressed = false; return; }
@@ -185,7 +216,7 @@
   // Quarters; Back pauses or backs out, and leaves the app from the title; Menu starts or pauses.
   window.PAD = {
     code: name => {
-      const menu = state === 'quarters' || state === 'shop';
+      const menu = state === 'quarters' || state === 'shop' || state === 'continue';
       const front = state === 'title' || (state === 'over' && overT > 0.8);
       switch (name) {
         case 'up': return 'ArrowUp';
@@ -217,6 +248,12 @@
 
   function tap(x, y) {
     const near = (yy, line) => Math.abs(yy - line) <= 7;
+    if (state === 'continue') {
+      const L = contLayout(viewW());
+      if (JR.hit(L.yes, x, y)) answerContinue(true);
+      else if (JR.hit(L.no, x, y)) answerContinue(false);
+      return;
+    }
     if (state === 'title' || (state === 'over' && overT > 0.8)) {
       if (near(y, state === 'title' ? 118 : 170)) openQuarters('title'); else start();
     } else if (state === 'paused') {
@@ -256,7 +293,7 @@
 
   function step() {
     t += DT;
-    if (state === 'over') overT += DT;
+    if (state === 'over' || state === 'continue') overT += DT;
     if (quarters) quarters.msgT -= DT;
     if (shop) shop.msgT -= DT;
     if (state !== 'play') { input.jumpPressed = input.firePressed = false; return; }
@@ -349,16 +386,12 @@
     }
 
     if (player.dead) {
-      setState('over');
+      // Out of lives: Continue? YES plays on from here with three fresh lives, NO ends the run.
+      setState('continue');
       overT = 0;
+      contRow = 0;
       sfx.play('gameover');
-      // Everything picked up this run goes into the treasure chest for the Captain's Quarters.
-      const prevBest = best;
-      banked = player.gold;
-      JR.bank(profile, player.gold, score());
-      JR.saveProfile(STORE, profile);
-      best = Math.max(profile.best, prevBest);
-      announce(`Davy Jones takes ye. Score ${score()}, ${banked} gold to your chest.`);
+      announce('Out of lives. Continue? Yes or no.');
     }
     input.jumpPressed = input.firePressed = false;
   }
@@ -448,6 +481,16 @@
       ink('PAUSED', H / 2 - 14, 3);
       ink((pauseRow === 0 ? '> ' : '  ') + 'RESUME', H / 2 + 14, 1, pauseRow === 0 ? '#b8463e' : '#3e2731');
       ink((pauseRow === 1 ? '> ' : '  ') + 'QUIT TO TITLE (KEEP GOLD)', H / 2 + 28, 1, pauseRow === 1 ? '#b8463e' : '#3e2731');
+    } else if (state === 'continue') {
+      ctx.fillStyle = `rgba(16,16,40,${Math.min(0.5, overT)})`; ctx.fillRect(0, 0, W, H);
+      JR.ui.panel(ctx, 'board', W / 2 - 120, 34, 240, 128);
+      say('CONTINUE?', 56, 3, '#fcc838');
+      say(`KEEP YER ${player.gold} GOLD AND GEAR`, 86, 1, '#fce4a8');
+      say('AND SAIL ON WITH 3 FRESH LIVES', 98, 1, '#fce4a8');
+      const L = contLayout(W);
+      art.button(ctx, L.yes, 'YES', contRow === 0 ? '#7cfc7c' : '#fcc838');
+      art.button(ctx, L.no, 'NO', contRow === 1 ? '#7cfc7c' : '#fcc838');
+      if (!JR.touchMode()) say(JR.padMode() ? 'LEFT/RIGHT: CHOOSE   A / OK: PICK' : 'LEFT/RIGHT: CHOOSE   SPACE: PICK   Y / N', 152, 1, '#c8a878');
     } else if (state === 'over') {
       ctx.fillStyle = `rgba(16,16,40,${Math.min(0.5, overT)})`; ctx.fillRect(0, 0, W, H);
       JR.ui.panel(ctx, 'board', W / 2 - 150, 30, 300, 152);
@@ -463,7 +506,7 @@
 
   // Which tune fits right now: the area's, the boss theme, or none after Davy Jones.
   function music() {
-    if (state === 'over') JR.music.stop();
+    if (state === 'over' || state === 'continue') JR.music.stop();
     else if (state === 'quarters' || state === 'title') JR.music.play('town');
     else if (boss || arena) JR.music.play('boss');
     else JR.music.play(level.biomeAt(Math.max(0, Math.floor((camX + JR.VIEW_W / 2) / JR.TILE))));

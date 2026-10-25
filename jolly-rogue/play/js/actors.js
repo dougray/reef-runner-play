@@ -64,12 +64,23 @@
     return true;
   };
 
+  // Continue? after the last life: three fresh lives where the pirate fell, gold and gear kept.
+  JR.continueRun = p => {
+    p.dead = false;
+    p.lives = 3;
+    p.hearts = p.maxHearts;
+    p.continues = (p.continues || 0) + 1;
+    if (p.y > JR.WORLD_H) p.y = p.safeY - (24 - p.h), p.x = p.safeX;
+    p.vx = p.vy = 0;
+    p.inv = 2.5;
+  };
+
   // Returns true when this gold earned an extra life.
   JR.addGold = (p, n) => {
-    const before = Math.floor(p.runGold / 100);
+    const before = Math.floor(p.runGold / JR.LIFE_GOLD);
     p.gold += n;
     p.runGold += n;
-    const gained = Math.floor(p.runGold / 100) - before;
+    const gained = Math.floor(p.runGold / JR.LIFE_GOLD) - before;
     p.lives += gained;
     return gained > 0;
   };
@@ -300,7 +311,7 @@
 
     w.pickups = w.pickups.filter(k => {
       if (!JR.overlap(k, p)) return true;
-      if (k.type === 'o') emit(w, JR.addGold(p, 1) ? 'life' : 'coin', k.x, k.y);
+      if (k.type === 'o') emit(w, JR.addGold(p, JR.COIN) ? 'life' : 'coin', k.x, k.y);
       else if (k.type === 'r') { p.hearts = Math.min(p.maxHearts, p.hearts + 1); emit(w, 'heal', k.x, k.y); }
       else if (k.type === 'w') { p.gun = k.gun; p.grace = p.graceMax; p.mag = 0; emit(w, 'gun', k.x, k.y); }
       return false;

@@ -20,7 +20,10 @@
   JR.GRAVITY_UP = 960;       // rising with jump held
   JR.GRAVITY_FALL = 1650;    // falling, or rising after release
   JR.JUMP_BUFFER = 0.1;
-  JR.STOMP_DEPTH = 8;        // landing with the feet this far into an enemy's top is a stab, not a bump
+  JR.STOMP_DEPTH = 8;
+  // Gold: each coin is worth COIN, and every LIFE_GOLD picked up in a run is an extra life.
+  JR.COIN = 2;
+  JR.LIFE_GOLD = 200;        // landing with the feet this far into an enemy's top is a stab, not a bump
   JR.STOMP_BOUNCE = 0.8;     // the bounce off a stab, as a share of a jump      // a press this early before landing still jumps
   JR.COYOTE = 0.08;          // and this late after running off a ledge
 
