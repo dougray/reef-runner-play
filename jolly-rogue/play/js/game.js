@@ -415,16 +415,16 @@
       say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : JR.padMode() ? "Y OR FAST-FORWARD: CAPTAIN'S QUARTERS" : "C: CAPTAIN'S QUARTERS", 118, 1, '#fcc838');
       if (JR.remoteMode()) {
         say('HOLD THE REMOTE SIDEWAYS: RING MOVES + AIMS', 196, 1, '#fce4a8');
-        say('OK JUMPS  ·  FAST-FORWARD FIRES  ·  BACK PAUSES', 207, 1, '#fce4a8');
+        say('OK JUMPS (LAND ON FOES TO STAB)  ·  FAST-FORWARD FIRES', 207, 1, '#fce4a8');
       } else if (JR.padMode()) {
         say('STICK/D-PAD MOVE + AIM   A JUMP   X OR B FIRE', 196, 1, '#fce4a8');
-        say('TAP JUMP FOR A HOP  ·  DOWN+JUMP DROPS THROUGH DOCKS', 207, 1, '#fce4a8');
+        say('JUMP ON A FOE TO STAB IT  ·  DOWN+JUMP DROPS THROUGH DOCKS', 207, 1, '#fce4a8');
       } else if (JR.touchMode()) {
         say('D-PAD: MOVE + AIM   RIGHT: JUMP + FIRE', 196, 1, '#fce4a8');
         say('TAP ANYWHERE TO START', 207, 1, '#fce4a8');
       } else {
         say('ARROWS/WASD MOVE + AIM   SPACE/Z JUMP   X/J FIRE', 196, 1, '#fce4a8');
-        say('TAP JUMP FOR A HOP  ·  DOWN+JUMP DROPS THROUGH DOCKS', 207, 1, '#fce4a8');
+        say('JUMP ON A FOE TO STAB IT  ·  DOWN+JUMP DROPS THROUGH DOCKS', 207, 1, '#fce4a8');
       }
       if (best) art.text(ctx, 'HI ' + String(best).padStart(6, '0'), W - 5, 8, { align: 'right', color: '#bcdcfc' });
       return;

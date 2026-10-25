@@ -107,10 +107,13 @@
     let im = painted[biome];
     if (!im) { im = painted[biome] = new Image(); im.src = JR.PAINTED[biome]; }
     if (!im.complete || !im.naturalWidth) return false;
-    const w = im.naturalWidth * H() / im.naturalHeight;
+    // Copies are `w` apart but each is drawn PAD wider: its faded-in left edge lies over the same
+    // pixels at the end of the copy before it, so the joins don't show.
+    const k = H() / im.naturalHeight, pad = JR.PAINTED_PAD || 0, w = (im.naturalWidth - pad) * k;
     const smooth = ctx.imageSmoothingEnabled;
     ctx.imageSmoothingEnabled = true;                  // painted art, not pixels
-    for (let x = wrap(-camX * 0.2, w, w); x < W(); x += w) ctx.drawImage(im, x, 0, w, H());
+    const first = wrap(-camX * 0.2, w, w) - w;         // one copy further left, whose tail covers the first join
+    for (let x = first; x < W(); x += w) ctx.drawImage(im, x, 0, w + pad * k, H());
     ctx.imageSmoothingEnabled = smooth;
     return true;
   }

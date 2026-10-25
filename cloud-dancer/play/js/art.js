@@ -37,7 +37,8 @@
   const PX = 3;
   function tileX(ctx, im, offset) {
     const tw = im.width / PX, th = im.height / PX;
-    for (let x = wrap(offset, tw) - tw; x < W(); x += tw) ctx.drawImage(im, x, 0, tw, th);
+    const over = 1 / Math.max(1, ctx.getTransform().a);   // copies overlap a pixel: no line where they meet
+    for (let x = wrap(offset, tw) - tw; x < W(); x += tw) ctx.drawImage(im, x - over, 0, tw + 2 * over, th);
   }
   // A painted cumulus, `w` units wide, centred on x, y.
   function cumulus(ctx, i, x, y, w, alpha = 1, tint = null) {

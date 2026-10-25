@@ -2,7 +2,9 @@
 // spots chests and crates ahead.
 (() => {
   const JR = window.JR;
-  const REACH = 48, PULL = 240;
+  // Reach covers the coin arcs a few tiles over the pirate's head (48 and 36 px did not: coins
+  // had to be all but touched, and the magnet felt broken).
+  const REACH = 112, PULL = 300;
 
   JR.updatePet = (p, w, lv, dt) => {
     const reach = p.pet === 'monkey' ? REACH : p.magnet || 0;      // the shop's coin magnet is a weaker monkey
