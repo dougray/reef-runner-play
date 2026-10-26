@@ -9,9 +9,9 @@
 
   // ---------- the world (js/art-world.js) ----------
 
-  art.drawSky = (ctx, camX, t, biome = 'beach') => {
+  art.drawSky = (ctx, camX, t, biome = 'beach', voyage = 1) => {
     ctx.fillStyle = '#2e2a3a'; ctx.fillRect(0, 0, W(), JR.VIEW_H);   // until the atlas is in
-    JR.artWorld.drawBackdrop(ctx, camX, t, biome);
+    JR.artWorld.drawBackdrop(ctx, camX, t, biome, voyage);
   };
   art.drawTiles = (ctx, lv, camX) => JR.artWorld.drawTiles(ctx, lv, camX);
 

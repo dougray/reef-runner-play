@@ -118,8 +118,11 @@
     return true;
   }
 
-  const drawBackdrop = (ctx, camX, t, biome) => {
-    if (paintedBackdrop(ctx, camX, biome)) return;
+  // Which painting a place gets: every second voyage has its own, where there is one.
+  JR.backdropFor = (biome, voyage = 1) => (voyage % 2 === 0 && JR.PAINTED && JR.PAINTED[biome + '2'] ? biome + '2' : biome);
+
+  const drawBackdrop = (ctx, camX, t, biome, voyage = 1) => {
+    if (paintedBackdrop(ctx, camX, JR.backdropFor(biome, voyage))) return;
     if (!A().ready) return;
     if (biome === 'beach') {
       seaBackdrop(ctx, camX, t);
