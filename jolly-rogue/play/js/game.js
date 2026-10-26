@@ -449,7 +449,7 @@
       cropX += (target - cropX) * (state === 'play' ? 0.1 : 1);
       ctx.translate(-Math.round(cropX * scale) / scale, 0);
     } else cropX = 0;
-    art.drawSky(ctx, cam, t, level.biomeAt(mid), level.nationAt(mid));
+    art.drawSky(ctx, cam, t, level.biomeAt(mid), Math.floor(level.segmentAt(mid) / JR.BIOMES.length) + 1);
     ctx.save();
     ctx.translate(-Math.round(cam * scale) / scale, -JR.CAM_Y);
     art.drawTiles(ctx, level, cam);
