@@ -733,7 +733,7 @@ window.Art = (() => {
     sparkle(ctx, x - 16, y - 2, 3.5, t + 1.3);
   }
 
-  // Rum barrel: grab it for rapid fire.
+  // Powder keg: grab it for rapid fire.
   function barrel(ctx, x, y, t) {
     ctx.save();
     ctx.translate(x, y + Math.sin(t * 3 + 1) * 3);
@@ -748,7 +748,7 @@ window.Art = (() => {
     ctx.strokeStyle = '#4b4b55'; ctx.lineWidth = 3;
     for (const by of [-9, 9]) { ctx.beginPath(); ctx.moveTo(-13, by); ctx.lineTo(13, by); ctx.stroke(); }
     ctx.restore();
-    text(ctx, 'XXX', x, y + Math.sin(t * 3 + 1) * 3, 9, '#fff');
+    text(ctx, 'X', x, y + Math.sin(t * 3 + 1) * 3, 9, '#fff');
   }
 
   function cannonball(ctx, x, y, r = 6) {
