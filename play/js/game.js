@@ -129,7 +129,7 @@
     nextBoss: BOSS_AT,
     bossesBeaten: 0,
     treasure: 0,
-    rapid: 0,                    // seconds of rum-fuelled rapid fire left
+    rapid: 0,                    // seconds of powder-keg rapid fire left
     clouds: [
       { x: 80, y: 42, s: 0.9 }, { x: 330, y: 64, s: 0.7 },
       { x: 560, y: 36, s: 1.0 }, { x: 760, y: 70, s: 0.6 },
@@ -927,7 +927,7 @@
       ctx.restore();
       const cooldown = game.rapid > 0 ? RAPID_COOLDOWN : FIRE_COOLDOWN;
       // Phones get real on-screen buttons instead (see updatePad).
-      if (!isTouch()) Art.fireButton(ctx, W - 50, H - 78, 30, 1 - game.reload / cooldown, game.rapid > 0 ? 'RUM!' : 'F');
+      if (!isTouch()) Art.fireButton(ctx, W - 50, H - 78, 30, 1 - game.reload / cooldown, game.rapid > 0 ? 'KEG!' : 'F');
       if (game.rapid > 0 && !isTouch()) {
         ctx.strokeStyle = '#ff5a3a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
         ctx.beginPath();
@@ -1189,7 +1189,7 @@
     muted: svg(SPEAKER + '<path d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>'),
   };
 
-  // Keeps the DOM buttons in step with the game: reload ring, rum, pause and mute icons.
+  // Keeps the DOM buttons in step with the game: reload ring, powder keg, pause and mute icons.
   const padState = {};
   function updatePad() {
     if (!isTouch()) return;
@@ -1198,7 +1198,7 @@
     const ready = game.state === 'playing' ? Math.max(0, Math.min(1, 1 - game.reload / cooldown)) : 1;
     set('ready', ready.toFixed(2), v => fireBtn.style.setProperty('--ready', v));
     set('loaded', ready >= 1, v => fireBtn.classList.toggle('ready', v));
-    set('rum', game.rapid > 0, v => { fireBtn.classList.toggle('rum', v); fireLabel.textContent = v ? 'RUM!' : 'FIRE'; });
+    set('rum', game.rapid > 0, v => { fireBtn.classList.toggle('rum', v); fireLabel.textContent = v ? 'KEG!' : 'FIRE'; });
     set('playing', game.state === 'playing', v => { pauseBtn.hidden = !v; });
     set('paused', game.paused, v => { pauseBtn.innerHTML = v ? ICON.play : ICON.pause; pauseBtn.setAttribute('aria-label', v ? 'Resume' : 'Pause'); });
     set('muted', Sfx.muted, v => { muteBtn.innerHTML = v ? ICON.muted : ICON.sound; muteBtn.setAttribute('aria-label', v ? 'Unmute sound' : 'Mute sound'); });
