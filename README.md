@@ -11,4 +11,4 @@ This repository holds the **built** game that GitHub Pages serves:
 - `index.html`: the landing page
 - `play/`: the game
 
-Code: MIT License. Logo and icon: CC BY 4.0 (see `LICENSE`). Built by [Websmith](https://websmithtx.com/).
+Code: Apache License 2.0. Logo and icon: CC BY 4.0 (see `NOTICE`). Built by [Websmith](https://websmithtx.com/).
