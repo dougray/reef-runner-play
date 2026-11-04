@@ -21,7 +21,9 @@
     // The view always fills the screen (`fit`, in CSS pixels); the canvas behind it has at most
     // 1080p's pixels (plenty, even on a 4K TV; 720p on a TV), times `quality`, and is stretched to fit.
     const fit = Math.min(window.innerWidth / CD.VIEW_W, (window.innerHeight - top) / CD.VIEW_H);
-    const most = document.documentElement.classList.contains('tv') ? 1280 : 1920;   // a TV's graphics chip is slow
+    // A Fire TV's graphics chip is slow (720p); Apple TV's draws the full 4K picture.
+    const root = document.documentElement.classList;
+    const most = root.contains('tv') ? 1280 : root.contains('appletv') ? 3840 : 1920;
     scale = Math.min(fit * dpr, most / CD.VIEW_W) * quality;
     canvas.width = Math.round(CD.VIEW_W * scale);
     canvas.height = Math.round(CD.VIEW_H * scale);
@@ -143,8 +145,9 @@
   });
   // Controllers and TV remotes (js/pad.js). A (OK on a remote) starts, dashes and buys; B backs
   // out of a menu and dashes in the air; Back pauses or backs out, and leaves the app from the
-  // title; X, Play/Pause and the right trigger dash; Y or Fast-forward opens the Hangar; Menu
-  // starts or pauses.
+  // title; X, Play/Pause and the right trigger dash; Y or Fast-forward (rb) opens the Hangar; Menu
+  // starts or pauses. A Siri Remote's Play/Pause arrives as rb.
+  const hangarButton = () => (document.documentElement.classList.contains('appletv') ? 'PLAY/PAUSE' : 'FAST-FORWARD');
   window.PAD = {
     code: name => {
       const menu = state === 'hangar' || state === 'market';
@@ -196,6 +199,7 @@
   }
   canvas.addEventListener('pointerdown', e => {
     CD.sfx && CD.sfx.unlock();
+    if (e.pointerType === 'mouse') document.documentElement.classList.add('mouse');   // menus then draw buttons to click
     const r = canvas.getBoundingClientRect();
     tap((e.clientX - r.left) / r.width * CD.VIEW_W, (e.clientY - r.top) / r.height * CD.VIEW_H);
   });
@@ -294,7 +298,7 @@
       if (logo) ctx.drawImage(logo, W / 2 - 50, 4, 100, 100 * logo.height / logo.width);
       else { say('CLOUD DANCER', 52, 28, '#ffd34e'); say('BEYOND THE REEF', 76, 11, '#ffffff'); }
       if (Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO CAST OFF' : padMode() ? 'PRESS A / OK TO CAST OFF' : 'PRESS SPACE TO CAST OFF', 118, 10);
-      say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? 'Y OR FAST-FORWARD: THE HANGAR' : 'H: THE HANGAR', 146, 8, '#ffd34e');
+      say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? `Y OR ${hangarButton()}: THE HANGAR` : 'H: THE HANGAR', 146, 8, '#ffd34e');
       say(`${profile.gold} GOLD IN YER CHEST` + (profile.best ? `   ·   BEST ${profile.best}` : ''), 164, 7, '#cfe8ff');
       say(touchMode() ? 'DRAG TO STEER · CANNONS FIRE ON THEIR OWN · STEAM = DASH'
         : remoteMode() ? 'HOLD THE REMOTE SIDEWAYS · RING STEERS · OK = FULL STEAM'
@@ -308,7 +312,7 @@
       say(banner.a, 70, 15, '#ffd34e'); say(banner.b, 88, 8, '#ffffff');
     }
     if (state === 'play' && !world.boss && CD.inCloud(world, ship)) art.text(ctx, 'HIDDEN IN THE CLOUDS', W / 2, H - 10, { size: 7, color: '#e8f4ff', align: 'center' });
-    if (state === 'market') art.drawMarket(ctx, market, world, ship, t, touchMode());
+    if (state === 'market') art.drawMarket(ctx, market, world, ship, t, touchMode() || document.documentElement.classList.contains('mouse'));
     else if (state === 'paused') {
       ctx.fillStyle = 'rgba(16,24,48,.5)'; ctx.fillRect(0, 0, W, H);
       say('PAUSED', H / 2 - 8, 22);
@@ -320,7 +324,7 @@
       say(banked && banked.newBest ? 'NEW BEST!' : `BEST ${profile.best}`, 108, 8, '#ffd34e');
       if (banked) say(`+${banked.banked} GOLD TO YER CHEST   (${profile.gold} IN ALL)`, 124, 8, '#ffd34e');
       if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO FLY AGAIN' : padMode() ? 'PRESS A / OK TO FLY AGAIN' : 'PRESS SPACE TO FLY AGAIN', 150, 10);
-      if (overT > 0.8) say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? 'Y OR FAST-FORWARD: THE HANGAR' : 'H: THE HANGAR', 168, 8, '#cfe8ff');
+      if (overT > 0.8) say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? `Y OR ${hangarButton()}: THE HANGAR` : 'H: THE HANGAR', 168, 8, '#cfe8ff');
     }
   }
 

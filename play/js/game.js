@@ -262,7 +262,7 @@
     const gapY = minY + Math.random() * (maxY - minY);
     game.lastGapY = gapY;
     const roll = Math.random();
-    const pickup = game.passed >= 3 && roll < 0.16 ? 'chest' : game.passed >= 6 && roll < 0.22 ? 'rum' : null;
+    const pickup = game.passed >= 3 && roll < 0.16 ? 'chest' : game.passed >= 6 && roll < 0.22 ? 'keg' : null;
     game.reefs.push({
       x: W + 20,
       top: gapY - gap / 2,        // bottom edge of the storm cloud
@@ -425,7 +425,7 @@
       game.rapid = RAPID_TIME;
       game.reload = 0;
       game.popups.push({ x, y: p.y - 30, text: 'RAPID FIRE!', life: 1.2 });
-      Sfx.rum();
+      Sfx.keg();
     }
   }
 
@@ -886,6 +886,8 @@
   const isTouch = () => document.documentElement.classList.contains('touch');
   const isPad = () => document.documentElement.classList.contains('pad');   // a controller or TV remote (js/pad.js)
   const isRemote = () => document.documentElement.classList.contains('remote');   // a TV remote alone
+  // The remote button that fires: Fast-forward on a Fire TV remote, Play/Pause on a Siri Remote.
+  const fireButton = () => (document.documentElement.classList.contains('appletv') ? 'Play/Pause' : 'Fast-forward');
 
   function drawUI() {
     if (game.state === 'menu') {
@@ -910,7 +912,7 @@
         Art.text(ctx, 'Hold FIRE to keep the cannon firing', menuX(), 358, 20, '#ffd34e');
       } else if (isRemote()) {
         Art.text(ctx, 'Press OK to set sail!', menuX(), 316, 22);
-        Art.text(ctx, 'OK: sail up  ·  Fast-forward: FIRE! (hold to keep firing)', menuX(), 346, 16, '#ffd34e');
+        Art.text(ctx, `OK: sail up  ·  ${fireButton()}: FIRE! (hold to keep firing)`, menuX(), 346, 16, '#ffd34e');
       } else if (isPad()) {
         Art.text(ctx, 'Press A or OK to set sail!', menuX(), 316, 22);
         Art.text(ctx, 'A / OK / up: sail up  ·  B, X or Play/Pause: FIRE! (hold to keep firing)', menuX(), 346, 16, '#ffd34e');
@@ -1198,7 +1200,7 @@
     const ready = game.state === 'playing' ? Math.max(0, Math.min(1, 1 - game.reload / cooldown)) : 1;
     set('ready', ready.toFixed(2), v => fireBtn.style.setProperty('--ready', v));
     set('loaded', ready >= 1, v => fireBtn.classList.toggle('ready', v));
-    set('rum', game.rapid > 0, v => { fireBtn.classList.toggle('rum', v); fireLabel.textContent = v ? 'KEG!' : 'FIRE'; });
+    set('keg', game.rapid > 0, v => { fireBtn.classList.toggle('keg', v); fireLabel.textContent = v ? 'KEG!' : 'FIRE'; });
     set('playing', game.state === 'playing', v => { pauseBtn.hidden = !v; });
     set('paused', game.paused, v => { pauseBtn.innerHTML = v ? ICON.play : ICON.pause; pauseBtn.setAttribute('aria-label', v ? 'Resume' : 'Pause'); });
     set('muted', Sfx.muted, v => { muteBtn.innerHTML = v ? ICON.muted : ICON.sound; muteBtn.setAttribute('aria-label', v ? 'Unmute sound' : 'Mute sound'); });

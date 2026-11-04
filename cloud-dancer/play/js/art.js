@@ -564,7 +564,7 @@
     const sel = CD.CATALOG[h.row], o = sel.options.find(o => o.id === h.view[sel.key]);
     const note = h.msgT > 0 ? h.msg : o.note || (CD.owns(profile, sel.key, o.id) ? '' : `BUY FOR ${o.price} GOLD`);
     if (note) art.text(ctx, note, W() / 2 + 60, 188, { size: 7, color: h.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
-    if (document.documentElement.classList.contains('touch')) { art.button(ctx, L.buy, 'BUY', !CD.owns(profile, sel.key, o.id)); art.button(ctx, L.done, 'DONE'); }
+    if (/\b(touch|mouse)\b/.test(document.documentElement.className)) { art.button(ctx, L.buy, 'BUY', !CD.owns(profile, sel.key, o.id)); art.button(ctx, L.done, 'DONE'); }
     else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: DONE' : 'ARROWS: CHOOSE   SPACE: BUY   ENTER: DONE', W() / 2 + 60, 204, { size: 6.5, color: '#d9c4a0', align: 'center' });
   };
 

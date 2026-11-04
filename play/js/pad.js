@@ -3,6 +3,7 @@
 //  - in a browser, the Gamepad API, polled every frame (controllers with the standard mapping);
 //  - in the Android app (phones, tablets, Fire TV), the activity sends remote and controller
 //    buttons here by name with window.padInput(name, down, from), and the web view never sees them.
+// Apple TV's app calls window.padInput the same way, from its remote and controllers.
 // Button names: up down left right a b x y lb rb lt rt back start ls rs. A TV remote's OK is
 // "a", Back is "back", Menu is "start", Play/Pause is "x", Rewind and Fast-forward are lb and rb.
 // The app also says which kind of device pressed it; while the last one was a TV remote the page
@@ -50,9 +51,16 @@
 
   const cap = window.Capacitor;
   const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
-  // A TV (the app, with no touch screen) shows the remote's buttons in its hints from the start,
-  // and the page gets the class "tv" so the game can draw fewer pixels (TV chips are slow).
-  if (native && !navigator.maxTouchPoints) { padMode(); kind('remote'); document.documentElement.classList.add('tv'); }
+  // A TV (the Android app, with no touch screen) shows the remote's buttons in its hints from the
+  // start, and the page gets the class "tv" so the game can draw fewer pixels (TV chips are slow).
+  // The iOS app with no touch points is the iPad build on a Mac: mouse and keyboard, not a TV.
+  const android = native && cap.getPlatform && cap.getPlatform() === 'android';
+  if (android && !navigator.maxTouchPoints) { padMode(); kind('remote'); document.documentElement.classList.add('tv'); }
+  // The Apple TV app (a shared engine that runs this page without a browser) starts with the
+  // remote's hints too, but its chip draws the full 4K picture, so it gets "appletv", not "tv".
+  // It calls window.padKind when a controller takes over from the remote, or back.
+  if (native && cap.getPlatform && cap.getPlatform() === 'tvos') { padMode(); kind('remote'); document.documentElement.classList.add('appletv'); }
+  window.padKind = kind;
 
   // Browser controllers: the standard mapping's buttons in order, then the left stick.
   const BUTTONS = ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'back', 'start', 'ls', 'rs', 'up', 'down', 'left', 'right'];

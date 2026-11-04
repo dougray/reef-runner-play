@@ -90,8 +90,8 @@
       }
     });
     const cur = shop.current();
-    P.text(ctx, shop.msgT > 0 ? shop.msg : cur.note, W / 2, JR.touchMode() ? H - 42 : H - 34, { align: 'center', color: shop.msgT > 0 ? '#fcc838' : '#bcdcfc' });
-    if (JR.touchMode()) {
+    P.text(ctx, shop.msgT > 0 ? shop.msg : cur.note, W / 2, JR.clickMode() ? H - 42 : H - 34, { align: 'center', color: shop.msgT > 0 ? '#fcc838' : '#bcdcfc' });
+    if (JR.clickMode()) {
       JR.art.button(ctx, JR.SLAYOUT.buy, 'BUY', '#7cfc7c');
       JR.art.button(ctx, JR.SLAYOUT.sail, 'SAIL');
     } else P.text(ctx, JR.padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: SET SAIL' : 'UP/DOWN: CHOOSE   SPACE: BUY   ENTER: SET SAIL', W / 2, H - 22, { align: 'center', color: '#c8a878' });

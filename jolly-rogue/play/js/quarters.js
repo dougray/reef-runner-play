@@ -109,7 +109,7 @@
     if (q.msgT > 0) P.text(ctx, q.msg, 260, yb, { align: 'center', color: RED, ...on });
     else if (!st.owned) P.text(ctx, `${JR.padMode() ? 'A' : 'SPACE'}: BUY FOR ${st.price} GOLD`, 260, yb, { align: 'center', color: GREEN, ...on });
     else if (st.note) P.text(ctx, st.note, 260, yb, { align: 'center', color: '#4a6ab0', ...on });
-    if (JR.touchMode()) {
+    if (JR.clickMode()) {
       JR.art.button(ctx, JR.QLAYOUT.buy, 'BUY', st.owned ? '#a8a8bc' : '#7cfc7c');
       JR.art.button(ctx, JR.QLAYOUT.done, 'DONE');
     } else P.text(ctx, JR.padMode() ? 'D-PAD: CHOOSE    A / OK: BUY    B / BACK: DONE' : 'ARROWS: CHOOSE    SPACE: BUY    ENTER: DONE', W / 2, H - 6, { align: 'center', color: '#fce4a8' });

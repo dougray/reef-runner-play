@@ -153,7 +153,7 @@ window.Sfx = (() => {
     pause() { tone(660, 440, 0.12, 'triangle', 0.08); },
     thunder() { noise(1.4, 0.5, 260); noise(0.35, 0.3, 1400); },
     horn() { tone(110, 104, 0.9, 'sawtooth', 0.1); tone(82, 80, 1.1, 'sawtooth', 0.08, 0.1); },
-    rum() { tone(220, 520, 0.2, 'triangle', 0.12); tone(330, 780, 0.2, 'triangle', 0.1, 0.12); },
+    keg() { tone(220, 520, 0.2, 'triangle', 0.12); tone(330, 780, 0.2, 'triangle', 0.1, 0.12); },
     fanfare() { [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.22, 'square', 0.06, i * 0.13)); },
     poof() { noise(0.12, 0.15, 1600); },
     sink() { noise(0.4, 0.4, 1100); tone(300, 60, 0.5, 'sawtooth', 0.1); noise(0.7, 0.25, 2600, 0.25); },

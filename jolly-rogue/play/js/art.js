@@ -202,6 +202,8 @@
   // On a touch screen menus show big tappable buttons instead of keyboard hints.
   JR.touchMode = () => typeof document !== 'undefined' && document.documentElement.classList.contains('touch');
   JR.padMode = () => typeof document !== 'undefined' && document.documentElement.classList.contains('pad');   // a controller or TV remote (js/pad.js)
+  // Touch, or a mouse has clicked the game: menus draw their BUY / DONE buttons to click.
+  JR.clickMode = () => JR.touchMode() || (typeof document !== 'undefined' && document.documentElement.classList.contains('mouse'));
   JR.remoteMode = () => typeof document !== 'undefined' && document.documentElement.classList.contains('remote');   // a TV remote alone
   // Green for buying, grayed when there is nothing to buy, yellow otherwise.
   art.button = (ctx, b, label, color = '#fcc838') => {
