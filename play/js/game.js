@@ -1,5 +1,5 @@
 // Reef Runner — steer between storm clouds and sandbars; sink British and Spanish ships,
-// grab treasure, ride out storms and take on the man-o'-war.
+// grab treasure and sail the voyage's areas (js/voyage.js) out to the man-o'-war and round again.
 (() => {
   'use strict';
 
@@ -67,14 +67,27 @@
       muzzle: [-58, -8], box: { w: 62, top: 100, bottom: 24 }, sinkTime: 2.2,
       splinters: ['#b8322a', '#e8b23a', '#fbf7ee', '#7a4a24'],
     },
+    // Revenue gunboat (Storm Coast on): small and quick to turn, with a fast-loading bow gun.
+    gunboat: {
+      hp: 1, points: 8, at: 0.7, half: 44, track: 95, stay: 8, fire: [1.0, 1.5], spread: [0],
+      muzzle: [-40, -9], box: { w: 38, top: 58, bottom: 16 }, sinkTime: 1.3,
+      splinters: ['#2a2e3a', '#d63a2f', '#fbf7ee', '#5a3a1f'],
+    },
+    // Fire ship (Volcano Isles): no guns; it flares up at its station, then rams.
+    fireship: {
+      hp: 1, points: 10, at: 0.8, half: 50, track: 55, stay: 99, fire: [9, 9], spread: [], ram: true,
+      muzzle: [-50, -6], box: { w: 44, top: 64, bottom: 18 }, sinkTime: 1.4,
+      splinters: ['#3a2018', '#ff7a2a', '#ffe14d', '#5a3a1f'],
+    },
   };
+  const RAM_AFTER = 1.1;           // seconds a fire ship flares at its station before it rams
 
   const REEF_W = 76;
   let REEF_SPACING = 300;
 
-  // Events: a storm rolls in for STORM_LEN reefs from reef 20, and a man-o'-war blocks
-  // the way at reef 40; both come round again every EVENT_CYCLE reefs.
-  const STORM_AT = 20, STORM_LEN = 10, BOSS_AT = 40, EVENT_CYCLE = 50;
+  // The voyage's areas (js/voyage.js) bring the weather, the enemies and the man-o'-war.
+  const V = window.Voyage;
+  const POOL_R = 110, POOL_PULL = 900;   // a whirlpool's reach and its tug (px/s² at its eye)
   const BOSS = { at: 0.74, half: 112, track: 38, muzzle: [-90, -17], box: { w: 90, top: 132, bottom: 34 }, points: 100 };
   const CHEST_POINTS = 10;
   const RAPID_TIME = 5, RAPID_COOLDOWN = 0.18;
@@ -96,6 +109,8 @@
   const TICK = 1 / 120;
   // Play-testing aid: ?god makes the ship invincible and exposes window.reef / window.reefStep.
   const GOD = /[?&]god\b/.test(location.search);
+  // ?area=N (0-5) offers that area on the title screen for this visit, unlocked or not (not saved).
+  const AREA_PARAM = /[?&]area=(\d+)/.exec(location.search);
 
   // Title-screen logo; falls back to drawn text until (or unless) it loads.
   const logo = new Image();
@@ -121,13 +136,18 @@
     particles: [],
     gulls: [],
     sails: [{ x: 520, s: 0.8 }, { x: 110, s: 0.6 }],   // distant ships on the horizon
-    sunk: { frigate: 0, galleon: 0 },
+    sunk: { frigate: 0, galleon: 0, gunboat: 0, fireship: 0 },
     storm: { on: false, k: 0, gust: 0, gustTarget: 0, gustT: 0, flash: 0, nextBolt: 0 },
+    wx: { fog: 0, night: 0, embers: 0, sunset: 0 },   // how much of each area's weather is showing
     boss: null,
     banner: null,                // big centre-screen announcement
-    nextStorm: STORM_AT,
-    nextBoss: BOSS_AT,
     bossesBeaten: 0,
+    area: 0,                     // index into Voyage.AREAS
+    loop: 0,                     // times round the whole voyage
+    unlocked: 0,                 // furthest area reached on this device (a checkpoint to start from)
+    startArea: 0,                // the checkpoint the next run sets sail from
+    startPassed: 0,
+    look: null,                  // the fade between two areas' colours (see setLook)
     treasure: 0,
     rapid: 0,                    // seconds of powder-keg rapid fire left
     clouds: [
@@ -157,17 +177,28 @@
   function saveBest(n) {
     try { localStorage.setItem('reefrunner.best', String(n)); } catch { /* private mode etc. */ }
   }
+  // localStorage itself can throw when site data is blocked; Voyage's helpers catch the rest.
+  const store = (() => { try { return window.localStorage; } catch { return null; } })() ||
+    { getItem: () => null, setItem() {} };
+  game.unlocked = V.loadUnlocked(store);
+  game.startArea = V.loadStart(store);
+  if (AREA_PARAM) {
+    const n = Math.min(V.AREAS.length - 1, +AREA_PARAM[1]);
+    game.unlocked = Math.max(game.unlocked, n);
+    game.startArea = n;
+  }
 
   // ---------- difficulty ----------
 
   // Difficulty climbs with reefs passed rather than score, so sinking ships
   // earns points without also speeding up the sea.
-  const speed = () => Math.min(290, 170 + game.passed * 3) * (PORTRAIT ? 0.9 : 1);
-  const gapSize = () => Math.max(135, 190 - game.passed * 2);
-  const enemyShotSpeed = () => Math.min(410, 330 + game.passed * 2) * Math.max(0.6, REACH);
-  const maxEnemies = () => (game.passed >= 25 && !PORTRAIT ? 2 : 1);   // no room for two in portrait
-  const enemyInterval = () => rnd(5, 9) - Math.min(3, game.passed * 0.06);
-  const galleonChance = () => (game.passed < 12 ? 0 : Math.min(0.5, 0.25 + (game.passed - 12) * 0.02));
+  // The curve itself lives in js/voyage.js, so the tests can check it.
+  const speed = () => V.speed(game.passed, PORTRAIT);
+  const gapSize = () => V.gapSize(game.passed);
+  const enemyShotSpeed = () => V.shotSpeed(game.passed) * Math.max(0.6, REACH);
+  const maxEnemies = () => V.maxEnemies(game.passed, PORTRAIT);   // no room for two in portrait
+  const enemyInterval = () => V.enemyGap(game.passed, Math.random());
+  const area = () => V.AREAS[game.area];
 
   // ---------- game flow ----------
 
@@ -180,36 +211,37 @@
     game.enemies = [];
     game.popups = [];
     game.flashes = [];
-    game.sunk = { frigate: 0, galleon: 0 };
-    game.storm = { on: false, k: 0, gust: 0, gustTarget: 0, gustT: 0, flash: 0, nextBolt: 0 };
+    game.sunk = { frigate: 0, galleon: 0, gunboat: 0, fireship: 0 };
+    game.storm = { on: false, k: game.storm.k, gust: 0, gustTarget: 0, gustT: 0, flash: 0, nextBolt: 0 };
     game.boss = null;
     game.banner = null;
-    game.nextStorm = STORM_AT;
-    game.nextBoss = BOSS_AT;
     game.bossesBeaten = 0;
     game.treasure = 0;
     game.rapid = 0;
     game.newBest = false;
     game.reload = 0;
     game.untilEnemy = 6;
-    game.passed = 0;
+    game.startPassed = V.startOf(game.startArea);
+    game.passed = game.startPassed;
     game.score = 0;
     game.untilReef = 120;
     game.lastGapY = startY();
     game.deadT = 0;
   }
 
+  function setSail() {
+    reset();
+    game.state = 'playing';
+    enterArea(V.areaAt(game.passed), 'Set sail! ');
+  }
+
   function flap() {
     Sfx.unlock();
     if (game.state === 'menu') {
-      reset();
-      game.state = 'playing';
-      say('Set sail!');
+      setSail();
     } else if (game.state === 'dead') {
       if (game.deadT < 0.7) return;   // don't let a panicked tap skip the game-over screen
-      reset();
-      game.state = 'playing';
-      say('Set sail!');
+      setSail();
     }
     const s = game.ship;
     s.vy = FLAP_VY;
@@ -249,27 +281,38 @@
         }
       }, 450);
     }
-    say(`Shipwrecked! Score ${game.score}. ${game.newBest ? 'New best!' : `Best ${game.best}.`} Sail up to try again.`);
+    say(`Shipwrecked in ${area().name}! Score ${game.score}. ${game.newBest ? 'New best!' : `Best ${game.best}.`} Sail up to try again.`);
   }
 
   function spawnReef() {
+    const R = V.areaAt(game.passed).area.reefs;
     const gap = gapSize();
-    const lo = 50 + gap / 2;
-    const hi = FLOOR - 40 - gap / 2;
-    // Keep consecutive gaps within reach so no layout is impossible.
-    const minY = Math.max(lo, game.lastGapY - 160);
-    const maxY = Math.min(hi, game.lastGapY + 160);
-    const gapY = minY + Math.random() * (maxY - minY);
+    const amp = R.bob || 0;       // Ghost Waters: the whole reef rises and falls on the swell
+    const lo = 50 + gap / 2 + amp;
+    const hi = FLOOR - 40 - gap / 2 - amp;
+    // Keep consecutive gaps within reach so no layout is impossible (bobbing eats into the reach).
+    const minY = Math.max(lo, game.lastGapY - 160 + amp);
+    const maxY = Math.min(hi, game.lastGapY + 160 - amp);
+    const gapY = minY + Math.random() * Math.max(0, maxY - minY);
     game.lastGapY = gapY;
     const roll = Math.random();
     const pickup = game.passed >= 3 && roll < 0.16 ? 'chest' : game.passed >= 6 && roll < 0.22 ? 'keg' : null;
+    // Fog Banks: some of the empty stretches between reefs hide a whirlpool.
+    const pool = !pickup && R.whirlpools && Math.random() < R.whirlpools
+      ? { y: Math.max(CEILING + 70, Math.min(FLOOR - 70, gapY + rnd(-90, 90))) } : null;
+    const py = Math.max(CEILING + 40, Math.min(FLOOR - 40, gapY + rnd(-70, 70)));
     game.reefs.push({
       x: W + 20,
       top: gapY - gap / 2,        // bottom edge of the storm cloud
       bottom: gapY + gap / 2,     // top edge of the sandbar
+      baseTop: gapY - gap / 2, baseBottom: gapY + gap / 2,
+      bob: amp ? { amp, w: rnd(0.9, 1.4), ph: rnd(0, Math.PI * 2) } : null,
       passed: false,
       look: Art.makeObstacle(),
-      pickup: pickup && { kind: pickup, y: Math.max(CEILING + 40, Math.min(FLOOR - 40, gapY + rnd(-70, 70))), taken: false },
+      area: R.look,               // drawn in the look of the area it was spawned in
+      lanterns: !!R.lanterns,
+      pool,
+      pickup: pickup && { kind: pickup, y: py, y0: py, taken: false },
     });
   }
 
@@ -319,7 +362,7 @@
   const clampSea = y => Math.max(CEILING + 70, Math.min(FLOOR - 30, y));
 
   function spawnEnemy() {
-    const kind = Math.random() < galleonChance() ? 'galleon' : 'frigate';
+    const { kind, ghost } = V.pickEnemy(game.passed, Math.random());
     const T = ENEMIES[kind];
     const other = game.enemies.find(e => e.state !== 'sinking');
     let station = stationX(T);
@@ -330,9 +373,11 @@
       fireT = Math.max(1.2, other.fireT + 1);
     }
     game.enemies.push({
-      kind, T, station, fireT, hp: T.hp,
+      kind, T, station, fireT, hp: T.hp, ghost, solid: ghost ? 0 : 1, phase: rnd(0, 3.6),
       x: W + 90, y: clampSea(game.ship.y), t: 0, state: 'enter', sink: 0, flash: 0,
     });
+    if (ghost) Sfx.ghost();
+    else if (T.ram) Sfx.flame();
   }
 
   function splinter(e, n, speed) {
@@ -355,59 +400,82 @@
       return;
     }
     e.state = 'sinking';
+    e.solid = 1;
     game.sunk[e.kind]++;
     game.score += e.T.points;
     game.scorePop = 1;
     game.freeze = 0.07;
     game.popups.push({ burst: true, x: e.x, y: e.y - 40, r: 46, text: 'KABOOM!', life: 0.7, max: 0.7, spin: rnd(0, 1) });
     game.popups.push({ x: e.x, y: e.y - e.T.box.top - 34, text: `+${e.T.points}`, life: 1.2 });
-    game.shake = Math.max(game.shake, e.kind === 'galleon' ? 12 : 8);
+    game.shake = Math.max(game.shake, e.kind === 'galleon' || e.T.ram ? 12 : 8);
     Sfx.sink();
-    splinter(e, e.kind === 'galleon' ? 36 : 24, 300);
+    splinter(e, e.kind === 'galleon' || e.T.ram ? 36 : 24, 300);
     smoke(e.x, e.y - 30, 10);
   }
 
   // A fan of shots from (mx, my), aimed straight at where the ship is now,
   // so keeping on the move dodges it.
-  function volley(mx, my, spread, r) {
+  function volley(mx, my, spread, r, ghost = false) {
     const speed = enemyShotSpeed();
     const time = (mx - SHIP_X) / speed;
     const aim = Math.max(-160, Math.min(160, (game.ship.y - 10 - my) / time));
-    for (const fan of spread) game.shots.push({ x: mx, y: my, vx: -speed, vy: aim + fan, g: 0, r });
+    for (const fan of spread) game.shots.push({ x: mx, y: my, vx: -speed, vy: aim + fan, g: 0, r, ghost });
     smoke(mx, my, 4 + 2 * spread.length, -60);
     game.flashes.push({ x: mx - 6, y: my, r: 14, life: 0.09 });
     Sfx.enemyCannon();
   }
 
   function enemyVolley(e) {
-    volley(e.x + e.T.muzzle[0], e.y + e.T.muzzle[1], e.T.spread, e.kind === 'galleon' ? 7 : 6);
+    volley(e.x + e.T.muzzle[0], e.y + e.T.muzzle[1], e.T.spread, e.kind === 'galleon' ? 7 : e.kind === 'gunboat' ? 5 : 6, e.ghost);
   }
 
-  // ---------- events: treasure, storms, the man-o'-war ----------
+  // ---------- events: treasure, the voyage's areas, the man-o'-war ----------
 
-  function announce(title, sub) {
-    game.banner = { title, sub, life: 2.6, max: 2.6 };
-    const t = title.charAt(0) + title.slice(1).toLowerCase();   // "STORM!" reads better as "Storm!"
+  // `spoken` replaces the title for screen readers (area names read better in their own case).
+  function announce(title, sub, spoken, life = 2.6) {
+    game.banner = { title, sub, life, max: life };
+    const t = spoken || title.charAt(0) + title.slice(1).toLowerCase();   // "VICTORY!" reads better as "Victory!"
     say(sub ? `${t} ${sub.replace(/\s*·\s*/g, ', ')}.` : t);
   }
 
+  // Fade the sea, sky and weather to area `index` (also used by the title screen's area picker).
+  function setLook(index, instant) {
+    const now = game.look ? currentPalette() : V.AREAS[index];
+    const fromDecor = game.look ? (game.look.k < 0.5 ? game.look.fromDecor : V.AREAS[game.look.to].decor) : V.AREAS[index].decor;
+    game.look = { from: now, to: index, k: instant ? 1 : 0, fromDecor };
+    game.area = index;
+    game.storm.on = V.AREAS[index].weather === 'storm' && game.state === 'playing';
+  }
+  function currentPalette() {
+    const L = game.look;
+    return V.blend(L.from, V.AREAS[L.to], L.k);
+  }
+
+  // A new area: its title card, its weather, and (the first time ever) a new checkpoint.
+  function enterArea(at, prefix = '') {
+    const A = at.area;
+    game.loop = at.loop;
+    setLook(at.index, prefix !== '' && game.look && game.look.to === at.index);
+    game.storm.on = A.weather === 'storm';
+    if (game.storm.on) game.storm.nextBolt = 1.2;
+    // Only sailing into an area unlocks it (a run that starts there already had it).
+    const fresh = !prefix && V.unlock(store, at.index);
+    game.unlocked = Math.max(game.unlocked, at.index);
+    const voyage = at.loop ? `Voyage ${at.loop + 1}  ·  ` : '';
+    const sub = fresh ? `${voyage}Checkpoint unlocked!` : `${voyage}${A.sub}`;
+    announce(A.name.toUpperCase(), sub, prefix + A.name + '.', 3.2);
+    if (fresh && !prefix) { Sfx.fanfare(); } else if (A.weather === 'storm') Sfx.thunder(); else Sfx.bell();
+  }
+
   function onReefPassed() {
-    const pts = game.storm.on ? 2 : 1;    // storms pay double
-    game.score += pts;
+    const A = area();
+    game.score += A.pay;                  // the Storm Coast pays double, as the old storms did
     game.passed++;
     game.scorePop = 1;
     Sfx.point();
-    if (!game.storm.on && game.passed === game.nextStorm) {
-      game.storm.on = true;
-      game.storm.nextBolt = 1.2;
-      announce('STORM!', 'Wind gusts  ·  double points');
-      Sfx.thunder();
-    } else if (game.storm.on && game.passed >= game.nextStorm + STORM_LEN) {
-      game.storm.on = false;
-      game.nextStorm += EVENT_CYCLE;
-      announce('Calm seas', '');
-    }
-    if (game.passed === game.nextBoss && !game.boss) startBoss();
+    const at = V.areaAt(game.passed);
+    if (at.index !== game.area || at.loop !== game.loop) enterArea(at);
+    else if (at.area.boss && at.into === at.area.boss && !game.boss) startBoss();
   }
 
   function collect(p, x) {
@@ -429,10 +497,20 @@
     }
   }
 
+  // The areas' weather fades in and out with them, title screen included.
+  function updateWeather(dt) {
+    const L = game.look;
+    if (L && L.k < 1) L.k = Math.min(1, L.k + dt / 2.5);
+    const w = area().weather;
+    for (const key of Object.keys(game.wx)) game.wx[key] += ((w === key ? 1 : 0) - game.wx[key]) * Math.min(1, dt * 0.6);
+    const st = game.storm;
+    const raining = w === 'storm';
+    st.k += ((raining ? 1 : 0) - st.k) * Math.min(1, dt * 0.8);
+    st.flash = Math.max(0, st.flash - dt * 4);
+  }
+
   function updateStorm(dt) {
     const st = game.storm;
-    st.k += ((st.on ? 1 : 0) - st.k) * Math.min(1, dt * 0.8);
-    st.flash = Math.max(0, st.flash - dt * 4);
     if (st.k < 0.02) return;
     st.gustT -= dt;
     if (st.gustT <= 0) { st.gustTarget = st.on ? rnd(-260, 200) : 0; st.gustT = rnd(1.2, 2.4); }
@@ -511,7 +589,6 @@
         game.boss = null;
         game.untilReef = 260;
         game.untilEnemy = 4;
-        game.nextBoss += EVENT_CYCLE;
       }
       return;
     }
@@ -549,8 +626,8 @@
 
     game.rapid = Math.max(0, game.rapid - dt);
     if (fireHeld && game.reload <= 0) fire();
-    // No new warships while a storm blows or the man-o'-war is out.
-    if (!game.boss && !game.storm.on && game.enemies.filter(e => e.state !== 'sinking').length < maxEnemies()) {
+    // No new warships while the man-o'-war is out.
+    if (!game.boss && game.enemies.filter(e => e.state !== 'sinking').length < maxEnemies()) {
       game.untilEnemy -= dt;
       if (game.untilEnemy <= 0) { spawnEnemy(); game.untilEnemy = enemyInterval(); }
     }
@@ -564,6 +641,23 @@
         if (Math.random() < dt * 20) spawnParticle(e.x + rnd(-30, 30), e.y + rnd(-10, 20), 0, -60, rnd(2, 4), 0.6, '#dff6ff', -80);
         continue;
       }
+      if (e.ghost) e.solid = V.ghostSolid(e.t + e.phase);
+      if (e.state === 'ram') {
+        // A fire ship under full sail, straight down the sea; it only slowly follows you.
+        e.x -= 240 * Math.max(0.7, REACH) * dt;
+        const dy = clampSea(s.y) - e.y;
+        e.y += Math.sign(dy) * Math.min(Math.abs(dy), 22 * dt);
+        if (Math.random() < dt * 30) spawnParticle(e.x + rnd(-30, 30), e.y - rnd(20, 60), rnd(20, 80), rnd(-90, -30), rnd(2, 4), 0.5, Math.random() < 0.5 ? '#ff8a2a' : '#ffe14d', -60);
+        if (shipCircles().some(c => circleHitsRect(c.x, c.y, c.r, e.x - e.T.box.w, e.y - e.T.box.top, e.T.box.w * 2, e.T.box.top + e.T.box.bottom))) {
+          // It goes up with you: no points for this one.
+          e.state = 'sinking'; e.flash = 0.2;
+          game.popups.push({ burst: true, x: e.x, y: e.y - 40, r: 46, text: 'KABOOM!', life: 0.7, max: 0.7, spin: rnd(0, 1) });
+          splinter(e, 30, 300);
+          wreck('fireship');
+          if (game.state !== 'playing') return;
+        }
+        continue;
+      }
       const hold = e.state === 'leave' ? W + 160 : e.station;
       e.x += (hold - e.x) * Math.min(1, dt * 1.4);
       // Shadow the player's height, but slowly enough to be outrun.
@@ -571,8 +665,12 @@
       e.y += Math.sign(dy) * Math.min(Math.abs(dy), e.T.track * dt);
 
       if (e.state === 'enter' && e.t > 1.2) e.state = 'fight';
-      if (e.state === 'fight') {
-        e.fireT -= dt;
+      if (e.state === 'fight' && e.T.ram) {
+        if (e.t > 1.2 + RAM_AFTER) { e.state = 'ram'; Sfx.flame(); }
+      } else if (e.state === 'fight') {
+        // A ghost ship only fires once it has fully taken shape, so its glow always warns first.
+        if (e.ghost && e.solid < 0.95) e.fireT = Math.max(e.fireT, 0.5);
+        else e.fireT -= dt;
         if (e.fireT <= 0) {
           enemyVolley(e);
           e.fireT = rnd(...e.T.fire) - Math.min(0.5, game.passed * 0.01);
@@ -580,7 +678,7 @@
         if (e.t > e.T.stay) e.state = 'leave';
       }
     }
-    game.enemies = game.enemies.filter(e => e.sink < 1 && !(e.state === 'leave' && e.x > W + 140));
+    game.enemies = game.enemies.filter(e => e.sink < 1 && !(e.state === 'leave' && e.x > W + 140) && e.x > -140);
     updateBoss(dt, v);
 
     for (const b of [...game.balls, ...game.shots]) {
@@ -593,7 +691,7 @@
     for (const b of game.balls) {
       if (b.dead) continue;
       for (const e of game.enemies) {
-        if (e.state === 'sinking') continue;
+        if (e.state === 'sinking' || e.solid < 0.5) continue;   // shot passes through a fading ghost
         const box = e.T.box;
         if (Math.abs(b.x - e.x) < box.w && b.y > e.y - box.top && b.y < e.y + box.bottom) {
           b.dead = true;
@@ -678,7 +776,7 @@
       if (d.x < -30) { d.x = W + rnd(40, 300); d.s = rnd(0.5, 0.9); }
     }
     game.untilGull -= dt;
-    if (game.untilGull <= 0) {
+    if (game.untilGull <= 0 && area().gulls) {
       game.gulls.push({ x: W + 20, y: rnd(16, 72), vx: rnd(40, 75), t: rnd(0, 6), s: rnd(0.7, 1) });
       game.untilGull = rnd(3, 8);
     }
@@ -697,7 +795,8 @@
     game.flashes = game.flashes.filter(f => f.life > 0);
     game.scorePop = Math.max(0, game.scorePop - dt * 4);
     if (game.banner) { game.banner.life -= dt; if (game.banner.life <= 0) game.banner = null; }
-    const tempo = game.boss && game.boss.state !== 'sinking' ? 1.08 : game.storm.on ? 1.04 : 1;
+    updateWeather(dt);
+    const tempo = game.boss && game.boss.state !== 'sinking' ? 1.08 : game.state === 'playing' ? area().tempo : 1;
     if (tempo !== game.tempo) { game.tempo = tempo; Sfx.tempo(tempo); }
 
     if (game.state === 'menu') {
@@ -714,6 +813,11 @@
       updateStorm(dt);
       for (const r of game.reefs) {
         r.x -= v * dt;
+        if (r.bob) {
+          const off = Math.sin(game.t * r.bob.w + r.bob.ph) * r.bob.amp;
+          r.top = r.baseTop + off; r.bottom = r.baseBottom + off;
+          if (r.pickup) r.pickup.y = r.pickup.y0 + off;
+        }
         if (!r.passed && r.x + REEF_W < SHIP_X) {
           r.passed = true;
           onReefPassed();
@@ -722,6 +826,11 @@
         if (p && !p.taken) {
           const px = r.x + PICKUP_DX;
           if (shipCircles().some(c => (c.x - px) ** 2 + (c.y - p.y) ** 2 < (c.r + 16) ** 2)) collect(p, px);
+        }
+        if (r.pool) {
+          // A whirlpool tugs the ship toward its eye, harder the closer it sails.
+          const dx = r.x + PICKUP_DX - SHIP_X, dy = r.pool.y - s.y, d = Math.hypot(dx, dy);
+          if (d < POOL_R && d > 1) s.vy += (dy / d) * POOL_PULL * (1 - d / POOL_R) * dt;
         }
       }
       game.reefs = game.reefs.filter(r => r.x + PICKUP_DX > -40);
@@ -761,21 +870,60 @@
     return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
   }
 
+  const rgb = V.rgb;
+  const moonX = () => (PORTRAIT ? W * 0.68 : W * 0.78);   // clear of the score and the corner buttons
+
+  // The horizon's landmark for an area, faded by `a` while one area gives way to the next.
+  function drawDecor(kind, a) {
+    if (a <= 0.02 || kind === 'none') return;
+    const x = W + 120 - ((game.scroll * 0.06 + 300) % (W + 260));
+    ctx.globalAlpha = a;
+    if (kind === 'island') Art.island(ctx, x, HORIZON + 2);
+    else if (kind === 'volcano') Art.volcano(ctx, x, HORIZON + 2, game.t);
+    else if (kind === 'wreck') Art.wreck(ctx, x, HORIZON + 1);
+    else if (kind === 'fleet') {    // the blockade's line of warships, hull down on the horizon
+      for (let i = 0; i < 5; i++) Art.distantSail(ctx, wrap(x + i * 150, W + 260) - 60, HORIZON - 3, 1.1 + (i % 2) * 0.25);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawBackground() {
-    // The weather turns as the run gets harder.
-    const storm = game.state === 'menu' ? 0 : Math.max(Math.min(1, game.passed / 45) * 0.7, game.storm.k);
+    const P = currentPalette();
+    const wx = game.wx;
     const sky = ctx.createLinearGradient(0, 0, 0, HORIZON);
-    sky.addColorStop(0, mix('#2e8fe6', '#34405e', storm));
-    sky.addColorStop(1, mix('#9fdcff', '#8795b0', storm));
+    sky.addColorStop(0, rgb(P.sky[0]));
+    sky.addColorStop(1, rgb(P.sky[1]));
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, W, HORIZON + 2);
 
-    for (const c of game.clouds) Art.cloud(ctx, c.x, c.y, c.s);
+    if (wx.night > 0.02) {
+      // Stars twinkle, and the full moon lights Ghost Waters.
+      for (let i = 0; i < 40; i++) {
+        const tw = 0.5 + 0.5 * Math.sin(game.t * 2 + i * 1.7);
+        ctx.fillStyle = `rgba(255,255,240,${wx.night * (0.35 + 0.6 * tw)})`;
+        ctx.fillRect(wrap(i * 97.3, W), 6 + ((i * 53.7) % (HORIZON - 16)), 2, 2);
+      }
+      ctx.globalAlpha = wx.night;
+      Art.moon(ctx, moonX(), 46, 20);
+      ctx.globalAlpha = 1;
+    }
+    if (wx.sunset > 0.02) { ctx.globalAlpha = wx.sunset; Art.sun(ctx, W * 0.62, HORIZON, 34); ctx.globalAlpha = 1; }
+    if (wx.embers > 0.02) {
+      const g = ctx.createLinearGradient(0, HORIZON - 50, 0, HORIZON);
+      g.addColorStop(0, 'rgba(255,110,40,0)'); g.addColorStop(1, `rgba(255,110,40,${0.45 * wx.embers})`);
+      ctx.fillStyle = g; ctx.fillRect(0, HORIZON - 50, W, 52);
+    }
+
+    if (P.cloud && P.cloudAlpha > 0.02) {
+      ctx.globalAlpha = P.cloudAlpha;
+      for (const c of game.clouds) Art.cloud(ctx, c.x, c.y, c.s, rgb(P.cloud));
+      ctx.globalAlpha = 1;
+    }
     for (const g of game.gulls) Art.gull(ctx, g.x, g.y, g.t, g.s);
 
     const sea = ctx.createLinearGradient(0, HORIZON, 0, H);
-    sea.addColorStop(0, mix('#2fc3e0', '#2b8ea6', storm));
-    sea.addColorStop(1, mix('#0b56a3', '#0a3a6e', storm));
+    sea.addColorStop(0, rgb(P.sea[0]));
+    sea.addColorStop(1, rgb(P.sea[1]));
     ctx.fillStyle = sea;
     ctx.fillRect(0, HORIZON, W, H - HORIZON);
 
@@ -783,7 +931,20 @@
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(0, HORIZON); ctx.lineTo(W, HORIZON); ctx.stroke();
     for (const d of game.sails) Art.distantSail(ctx, d.x, HORIZON - 3, d.s);
-    Art.island(ctx, W + 120 - ((game.scroll * 0.06 + 300) % (W + 260)), HORIZON + 2);
+    const L = game.look, k = L.k;
+    drawDecor(L.fromDecor, 1 - k);
+    drawDecor(V.AREAS[L.to].decor, k);
+    if (wx.night > 0.02) {
+      // Moonlight glittering on the water below the moon.
+      ctx.strokeStyle = `rgba(230,240,255,${0.4 * wx.night})`; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < 9; i++) {
+        const y = HORIZON + 8 + i * 11, len = 14 - i, drift = Math.sin(game.t * 1.6 + i * 1.9) * (6 + i * 2);
+        const x = moonX() + drift + (i % 2 ? 10 : -10);
+        ctx.moveTo(x - len / 2, y); ctx.lineTo(x + len / 2, y);
+      }
+      ctx.stroke();
+    }
 
     // Rows of little cartoon wave marks, farther rows scroll slower.
     ctx.lineCap = 'round';
@@ -792,7 +953,7 @@
       const k = 0.3 + row * 0.18;
       const spacing = 130;
       const off = (game.scroll * k + row * 47) % spacing;
-      ctx.strokeStyle = `rgba(255,255,255,${0.35 + row * 0.08})`;
+      ctx.strokeStyle = rgb(P.wave, 0.35 + row * 0.08);
       ctx.lineWidth = 2 + row * 0.5;
       for (let x = -off; x < W + spacing; x += spacing) {
         const bob = Math.sin(game.t * 2 + x * 0.05 + row) * (3 + game.storm.k * 6);
@@ -807,7 +968,7 @@
   }
 
   function drawFloor() {
-    ctx.fillStyle = '#e8c274';
+    ctx.fillStyle = rgb(currentPalette().sand);
     ctx.strokeStyle = Art.INK;
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -845,6 +1006,73 @@
     }
   }
 
+  // Fog Banks: a bank that thickens with distance ahead, so reefs and warships loom out of it,
+  // and drifting wreaths of mist. Drawn over the scenery but under the player's ship and the shot.
+  function drawFog() {
+    const k = game.wx.fog;
+    if (k < 0.02) return;
+    const x0 = SHIP_X + 110;
+    const g = ctx.createLinearGradient(x0, 0, W, 0);
+    g.addColorStop(0, 'rgba(214,222,226,0)');
+    g.addColorStop(0.4, `rgba(214,222,226,${0.6 * k})`);
+    g.addColorStop(1, `rgba(214,222,226,${0.88 * k})`);
+    ctx.fillStyle = g; ctx.fillRect(x0, 0, W - x0, H);
+    for (let i = 0; i < 7; i++) {
+      const x = wrap(i * 173 - game.t * (14 + i * 4) - game.scroll * 0.12, W + 300) - 150;
+      const y = HORIZON + 10 + ((i * 97) % Math.max(60, FLOOR - HORIZON - 30));
+      Art.glow(ctx, x, y, 90 + (i % 3) * 30, '230,236,240', 0.4 * k);
+    }
+  }
+
+  // Lantern light and warship gun-glow shine through the fog; whirlpools spin on the surface.
+  function drawFogLights() {
+    for (const r of game.reefs) {
+      if (r.lanterns) {
+        const ax = r.x + REEF_W * r.look.lamp, bx = r.x + REEF_W * (1 - r.look.lamp);
+        const flick = 0.75 + Math.sin(game.t * 9 + r.x) * 0.08;
+        // Hung just inside the cloud and stood just inside the sand, so they mark the gap's edges
+        // without poking into it.
+        Art.glow(ctx, ax, r.top - 12, 46, '255,214,110', 0.55 * flick);
+        Art.glow(ctx, bx, r.bottom + 10, 46, '255,214,110', 0.55 * flick);
+        Art.lantern(ctx, ax, r.top - 12, game.t, true);
+        Art.lantern(ctx, bx, r.bottom + 10, game.t, false);
+      }
+      if (r.pool) Art.whirlpool(ctx, r.x + PICKUP_DX, r.pool.y, 46, game.t);
+    }
+    if (game.wx.fog < 0.02) return;
+    for (const e of game.enemies) {
+      const c = enemyCharge(e);
+      if (c > 0) Art.glow(ctx, e.x + e.T.muzzle[0], e.y + e.T.muzzle[1], 26, '255,190,80', 0.9 * c * game.wx.fog);
+    }
+  }
+
+  // Volcano Isles: embers rising and ash drifting down. Ghost Waters: will-o'-the-wisps.
+  function drawSparks() {
+    const em = game.wx.embers, ni = game.wx.night;
+    if (em > 0.02) {
+      for (let i = 0; i < 46; i++) {
+        const x = wrap(i * 89.7 - game.t * (30 + (i % 5) * 9) - game.scroll * 0.2, W + 40) - 20;
+        const y = wrap(H - game.t * (36 + (i % 7) * 9) - i * 53.1, H + 20) - 10;
+        const fl = 0.55 + 0.45 * Math.sin(game.t * 8 + i);
+        ctx.fillStyle = i % 3 ? `rgba(255,150,50,${em * fl})` : `rgba(255,225,120,${em * fl})`;
+        ctx.fillRect(x, y, 3, 3);
+      }
+      ctx.fillStyle = `rgba(90,80,80,${0.5 * em})`;
+      for (let i = 0; i < 30; i++) {
+        const x = wrap(i * 131.3 - game.t * 50 - game.scroll * 0.3, W + 40) - 20;
+        const y = wrap(i * 61.7 + game.t * (28 + (i % 4) * 6), H + 20) - 10;
+        ctx.fillRect(x, y, 4, 2);
+      }
+    }
+    if (ni > 0.02) {
+      for (let i = 0; i < 9; i++) {
+        const x = wrap(i * 211 - game.t * 22 - game.scroll * 0.25, W + 60) - 30;
+        const y = HORIZON + 40 + ((i * 71) % Math.max(60, FLOOR - HORIZON - 80)) + Math.sin(game.t * 1.7 + i) * 14;
+        Art.glow(ctx, x, y, 14, '140,255,200', 0.55 * ni * (0.6 + 0.4 * Math.sin(game.t * 3 + i * 2)));
+      }
+    }
+  }
+
   function drawParticles() {
     for (const p of game.particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
@@ -863,7 +1091,7 @@
     const y0 = (PORTRAIT ? H * 0.28 : 110) - (1 - drop) * 40;
     ctx.globalAlpha = drop;
     Art.text(ctx, 'SHIPWRECKED!', W / 2, y0 - 42, 50, '#ff7a9c');
-    const pw = 360, ph = 190, px = W / 2 - pw / 2;
+    const pw = 360, ph = 196, px = W / 2 - pw / 2;
     Art.panel(ctx, px, y0, pw, ph);
     Art.label(ctx, 'Score', px + 40, y0 + 40, 22, '#6b4a22', 'left');
     Art.label(ctx, String(game.score), px + pw - 40, y0 + 40, 30, Art.INK, 'right');
@@ -871,16 +1099,67 @@
     Art.label(ctx, String(game.best), px + pw - 40, y0 + 78, 26, Art.INK, 'right');
     ctx.strokeStyle = '#d7b87e'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(px + 30, y0 + 102); ctx.lineTo(px + pw - 30, y0 + 102); ctx.stroke();
-    Art.label(ctx, `Reefs ${game.passed}   ·   Frigates ${game.sunk.frigate}   ·   Galleons ${game.sunk.galleon}`,
+    const sunk = Object.values(game.sunk).reduce((a, b) => a + b, 0);
+    Art.label(ctx, `Reefs ${game.passed - game.startPassed}  ·  Ships sunk ${sunk}  ·  Treasure ${game.treasure}`,
       W / 2, y0 + 128, 15, '#6b4a22');
-    Art.label(ctx, `Treasure ${game.treasure}   ·   Men-o'-war ${game.bossesBeaten}`, W / 2, y0 + 154, 15, '#6b4a22');
+    const at = V.areaAt(game.passed);   // not game.area: the picker below changes that
+    const where = `Reached ${at.area.name}${at.loop ? ` (voyage ${at.loop + 1})` : ''}`;
+    Art.label(ctx, game.bossesBeaten ? `${where}  ·  Men-o'-war ${game.bossesBeaten}` : where, W / 2, y0 + 156, 15, '#6b4a22');
     if (game.newBest) Art.ribbon(ctx, W / 2, y0 - 2, 150, 'NEW BEST!', -0.04 + Math.sin(game.t * 3) * 0.02);
     ctx.globalAlpha = 1;
     if (game.deadT >= 0.7) {
       ctx.globalAlpha = 0.6 + Math.sin(game.t * 5) * 0.4;
-      Art.text(ctx, isTouch() ? 'Tap SAIL to sail again' : 'Tap to sail again', W / 2, y0 + ph + 40, isTouch() ? 26 : 22, '#fff');
+      Art.text(ctx, isTouch() ? 'Tap SAIL to sail again' : 'Tap to sail again', W / 2, y0 + ph + 36, isTouch() ? 26 : 22, '#fff');
       ctx.globalAlpha = 1;
+      drawPicker(W / 2, y0 + ph + 76, false);
     }
+  }
+
+  // ---------- checkpoints: the title screen's "set sail from" picker ----------
+
+  const FONT = '"Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif';
+  let pickHits = [];               // where the picker's arrows were drawn, for taps and clicks
+  const pickerShown = () => game.unlocked > 0 && !game.paused &&
+    (game.state === 'menu' || (game.state === 'dead' && game.deadT >= 0.7));
+
+  function drawPicker(cx, y, hint) {
+    pickHits = [];
+    if (!pickerShown()) return;
+    const name = V.AREAS[game.startArea].name;
+    const label = `Set sail from: ${name}`;
+    ctx.font = `900 20px ${FONT}`;
+    const half = ctx.measureText(label).width / 2;
+    Art.text(ctx, label, cx, y, 20, '#ffd34e');
+    for (const dir of [-1, 1]) {
+      const ax = cx + dir * (half + 24);
+      ctx.fillStyle = '#ffd34e'; ctx.strokeStyle = Art.INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(ax + dir * 10, y); ctx.lineTo(ax - dir * 8, y - 11); ctx.lineTo(ax - dir * 8, y + 11);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      pickHits.push({ x: ax, y, dir });
+    }
+    if (hint) {
+      const how = isTouch() ? 'Tap the arrows' : isRemote() ? 'Left / right on the remote' : isPad() ? 'D-pad left / right' : '← / → keys or click the arrows';
+      Art.text(ctx, `${how} to start from a checkpoint (${game.unlocked + 1} of ${V.AREAS.length} reached)`, cx, y + 26, 12, '#bdf0f5');
+    }
+  }
+
+  function choose(dir) {
+    const n = game.unlocked + 1;
+    game.startArea = (((game.startArea + dir) % n) + n) % n;
+    if (!AREA_PARAM) V.saveStart(store, game.startArea);
+    setLook(game.startArea);
+    Sfx.unlock();
+    Sfx.point();
+    const A = V.AREAS[game.startArea];
+    say(`Set sail from ${A.name}, area ${game.startArea + 1} of ${V.AREAS.length}.`);
+  }
+
+  // A tap or click on one of the picker's arrows (stage coordinates).
+  function pickAt(p) {
+    if (!pickerShown()) return false;
+    const hit = pickHits.find(h => (p.x - h.x) ** 2 + (p.y - h.y) ** 2 < 30 * 30);
+    if (hit) choose(hit.dir);
+    return !!hit;
   }
   // Phones and tablets: index.html adds .touch (and can add it late, on a first touch).
   const isTouch = () => document.documentElement.classList.contains('touch');
@@ -921,6 +1200,8 @@
         Art.text(ctx, 'Space / click: sail up  ·  F / right-click: FIRE!', menuX(), 346, 16, '#ffd34e');
       }
       if (game.best > 0) Art.text(ctx, `Best: ${game.best}`, menuX(), 378, 18, '#bdf0f5');
+      if (PORTRAIT) drawPicker(W / 2, Math.min(FLOOR - 40, menuShipY() + 66), true);
+      else drawPicker(menuX(), 410, true);
     } else if (game.state === 'playing') {
       ctx.save();
       ctx.translate(W / 2, 50);
@@ -944,7 +1225,9 @@
         ctx.globalAlpha = Math.min(1, bn.life * 2);
         ctx.save();
         ctx.translate(W / 2, PORTRAIT ? H * 0.3 : 170);
-        ctx.scale(0.6 + pop * 0.4, 0.6 + pop * 0.4);
+        ctx.font = `900 50px ${FONT}`;
+        const fit = Math.min(1, (W - 40) / ctx.measureText(bn.title).width);   // long area names on a narrow sea
+        ctx.scale((0.6 + pop * 0.4) * fit, (0.6 + pop * 0.4) * fit);
         Art.text(ctx, bn.title, 0, 0, 50, '#ffd34e');
         if (bn.sub) Art.text(ctx, bn.sub, 0, 42, 20);
         ctx.restore();
@@ -961,6 +1244,12 @@
       drawGameOver();
     }
     if (!isTouch()) Art.text(ctx, Sfx.muted ? '🔇 M' : '🔊 M', W - 14, H - 14, 13, '#fff', 'right');
+  }
+
+  // 0-1 as a warship gets ready to fire (its gun glows), or a fire ship flares up to ram.
+  function enemyCharge(e) {
+    if (e.T.ram) return e.state === 'ram' ? 1 : e.state === 'fight' ? Math.min(1, (e.t - 1.2) / RAM_AFTER) : 0;
+    return e.state === 'fight' && e.fireT < 0.45 ? 1 - e.fireT / 0.45 : 0;
   }
 
   function render() {
@@ -980,11 +1269,12 @@
     drawBackground();
     // Enemy ships sail behind the reefs; sandbars give both sides cover.
     for (const e of game.enemies) {
-      const charge = e.state === 'fight' && e.fireT < 0.45 ? 1 - e.fireT / 0.45 : 0;
+      const charge = enemyCharge(e);
       const jolt = e.flash > 0 ? Math.sin(e.flash * 90) * 4 : 0;
       const y = e.y + Math.sin(game.t * 2.2 + e.station) * 3;
-      Art[e.kind](ctx, e.x + jolt, y, game.t, e.sink, charge);
-      if (e.T.hp > 1 && e.state !== 'sinking') Art.pips(ctx, e.x, y - e.T.box.top - 12, e.hp, e.T.hp);
+      if (e.ghost) Art.ghostShip(ctx, e.kind, e.x + jolt, y, game.t, e.sink, charge, e.solid);
+      else Art[e.kind](ctx, e.x + jolt, y, game.t, e.sink, charge);
+      if (e.T.hp > 1 && e.state !== 'sinking' && e.solid > 0.5) Art.pips(ctx, e.x, y - e.T.box.top - 12, e.hp, e.T.hp);
     }
     const B = game.boss;
     if (B) {
@@ -994,21 +1284,27 @@
       Art.manOWar(ctx, B.x + jolt, B.y + Math.sin(game.t * 1.6) * 3, game.t, B.sink, charge, B.wall > 0 ? 1 - B.wall / 0.9 : 0);
     }
     for (const r of game.reefs) {
-      Art.stormCloud(ctx, r.x, r.top, REEF_W, r.look, game.t);
-      Art.sandbar(ctx, r.x, r.bottom, REEF_W, H + 10, r.look);
+      Art.stormCloud(ctx, r.x, r.top, REEF_W, r.look, game.t, r.area);
+      Art.sandbar(ctx, r.x, r.bottom, REEF_W, H + 10, r.look, r.area, game.t);
     }
     for (const r of game.reefs) {
       const p = r.pickup;
       if (p && !p.taken) Art[p.kind === 'chest' ? 'chest' : 'barrel'](ctx, r.x + PICKUP_DX, p.y, game.t + r.x * 0.01);
     }
+    drawFog();
+    drawFogLights();
     const s = game.ship;
     for (const b of game.balls) Art.cannonball(ctx, b.x, b.y, 5);
-    for (const b of game.shots) Art.cannonball(ctx, b.x, b.y, b.r);
+    for (const b of game.shots) {
+      if (b.ghost) Art.ghostShot(ctx, b.x, b.y, b.r, game.t);
+      else Art.cannonball(ctx, b.x, b.y, b.r);
+    }
     Art.ship(ctx, SHIP_X, s.y, s.tilt, s.stretch, game.t, SHIP_SCALE);
     for (const f of game.flashes) Art.burst(ctx, f.x, f.y, f.r, '', f.x);
     drawParticles();
     drawFloor();
     drawRain();
+    drawSparks();
     for (const p of game.popups) {
       if (p.burst) {
         const age = p.max - p.life;
@@ -1109,6 +1405,11 @@
     if (e.code === 'KeyP' || e.code === 'Escape') { setPaused(!game.paused); return; }
     if (e.code === 'KeyM') { Sfx.toggleMute(); return; }   // mutes without un-pausing
     if (game.paused) { e.preventDefault(); setPaused(false); return; }
+    if (pickerShown() && /^(ArrowLeft|ArrowRight|KeyA|KeyD)$/.test(e.code)) {
+      e.preventDefault();
+      choose(e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 1);
+      return;
+    }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') { e.preventDefault(); flap(); }
     if (e.code === 'KeyF' || e.code === 'KeyX' || e.code === 'ArrowRight' || e.code === 'Enter') {
       e.preventDefault();
@@ -1121,8 +1422,10 @@
   });
   // Controllers and TV remotes (js/pad.js): A, OK and up sail; B, X, Play/Pause, right and the
   // shoulder buttons fire; Back and Menu pause. Back on the title screen leaves the app.
+  // On the title and game-over screens left and right pick the checkpoint to start from.
   window.PAD = {
     code: name => {
+      if (pickerShown() && (name === 'left' || name === 'right')) return name === 'left' ? 'ArrowLeft' : 'ArrowRight';
       switch (name) {
         case 'a': case 'up': return 'Space';
         case 'b': case 'x': case 'right': case 'rb': case 'rt': case 'lb': case 'lt': return 'KeyF';
@@ -1143,6 +1446,7 @@
       setPaused(true);
       return;
     }
+    if (game.state !== 'playing' && pickAt(p)) return;
     if (e.pointerType === 'mouse' && e.button === 2 && game.state === 'playing') fire();
     else flap();
   });
@@ -1226,6 +1530,7 @@
     requestAnimationFrame(frame);
   }
 
+  setLook(game.startArea, true);
   if (GOD) {
     window.reef = game;
     // Advance the simulation by `secs` and draw, even when the tab is hidden.

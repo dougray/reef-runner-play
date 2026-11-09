@@ -156,6 +156,10 @@ window.Sfx = (() => {
     keg() { tone(220, 520, 0.2, 'triangle', 0.12); tone(330, 780, 0.2, 'triangle', 0.1, 0.12); },
     fanfare() { [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.22, 'square', 0.06, i * 0.13)); },
     poof() { noise(0.12, 0.15, 1600); },
+    // The voyage: a ship's bell for a new area, a ghost's moan, a fire ship catching.
+    bell() { tone(784, 780, 0.6, 'triangle', 0.09); tone(1568, 1560, 0.4, 'sine', 0.04); tone(784, 780, 0.6, 'triangle', 0.07, 0.35); },
+    ghost() { tone(330, 220, 1.1, 'sine', 0.08); tone(495, 330, 1.0, 'sine', 0.04, 0.1); },
+    flame() { noise(0.7, 0.22, 900); tone(90, 140, 0.5, 'sawtooth', 0.04); },
     sink() { noise(0.4, 0.4, 1100); tone(300, 60, 0.5, 'sawtooth', 0.1); noise(0.7, 0.25, 2600, 0.25); },
     crash() { noise(0.45, 0.45, 900); tone(170, 45, 0.45, 'sawtooth', 0.18); },
   };

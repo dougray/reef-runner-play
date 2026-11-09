@@ -29,10 +29,30 @@ window.Art = (() => {
     const w = h * im.naturalWidth / im.naturalHeight;
     ctx.drawImage(im, cx - w / 2, bottom - h, w, h);
   }
-  // The storm cloud's puffy crown, once, with its cut lower edge faded out so stacked copies blend.
-  let crown = null;
-  function cloudCrown(im) {
-    if (crown) return crown;
+  // A painted sprite washed with a colour (the areas' night, ash and ghost looks): made once on a
+  // small canvas with source-atop, which keeps the sprite's own shading and outline under the wash.
+  // `colour` null gives the plain sprite.
+  const tints = {};
+  function tinted(name, colour) {
+    if (!colour) return sprite(name);
+    const key = name + '|' + colour;
+    if (tints[key]) return tints[key];
+    const im = sprite(name);
+    if (!im) return null;
+    const c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const g = c.getContext('2d');
+    g.drawImage(im, 0, 0);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = colour; g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'source-over';
+    c.naturalWidth = c.width; c.naturalHeight = c.height;   // so put() sizes it like an image
+    return (tints[key] = c);
+  }
+  // The storm cloud's puffy crown, once per look, with its cut lower edge faded out so stacked copies blend.
+  const crowns = {};
+  function cloudCrown(im, key = '') {
+    if (crowns[key]) return crowns[key];
     const iw = im.naturalWidth, ih = Math.round(im.naturalHeight * 0.36);
     const c = document.createElement('canvas'); c.width = iw; c.height = ih;
     const g = c.getContext('2d');
@@ -41,7 +61,7 @@ window.Art = (() => {
     const f = g.createLinearGradient(0, 0, 0, ih);
     f.addColorStop(0, '#000'); f.addColorStop(0.7, '#000'); f.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = f; g.fillRect(0, 0, iw, ih);
-    return (crown = c);
+    return (crowns[key] = c);
   }
   // A warm glow where a gun is about to fire.
   function muzzle(ctx, x, y, k) {
@@ -185,9 +205,23 @@ window.Art = (() => {
     ctx.restore();
   }
 
+  // How each area's reefs look: a wash over the painted cloud and sandbar, and whether the
+  // cloud rains and flickers with lightning. `lava` adds glowing cracks to the rock.
+  const LOOKS = {
+    day: { cloud: null, sand: null, rain: true, bolt: true },
+    storm: { cloud: 'rgba(28,34,60,0.3)', sand: 'rgba(60,70,100,0.2)', rain: true, bolt: true },
+    fog: { cloud: 'rgba(228,232,236,0.5)', sand: 'rgba(205,210,214,0.3)', rain: false, bolt: false },
+    night: { cloud: 'rgba(22,28,78,0.55)', sand: 'rgba(52,70,140,0.68)', rain: false, bolt: false },
+    lava: { cloud: 'rgba(58,40,36,0.6)', sand: 'rgba(46,30,30,0.86)', rain: false, bolt: true, lava: true },
+    sunset: { cloud: 'rgba(255,120,80,0.2)', sand: 'rgba(255,140,70,0.16)', rain: true, bolt: false },
+  };
+  const lookOf = name => LOOKS[name] || LOOKS.day;
+
   // Sandbar rising from the sea floor; `top` is the upper edge of the hitbox.
-  function sandbar(ctx, x, top, w, far, s) {
-    const im = sprite('sandbar');
+  function sandbar(ctx, x, top, w, far, s, lookName, t = 0) {
+    const L = lookOf(lookName);
+    const im = tinted('sandbar', L.sand);
+    if (L.lava) return lavaCracks(ctx, x, top, w, far, s, im, t);
     if (im) {
       // The painted pillar (cropped to its sand, a touch wider than the hitbox): its top as a cap at
       // natural shape, then the rest stretched down to the sea floor.
@@ -249,9 +283,36 @@ window.Art = (() => {
     }
   }
 
+  // Volcano Isles: a basalt pillar (the painted sandbar, darkened) split by glowing lava seams.
+  function lavaCracks(ctx, x, top, w, far, s, im, t) {
+    if (im) {
+      const iw = im.naturalWidth, ih = im.naturalHeight, sx = iw * 0.23, sw = iw * 0.56;
+      const dw = w * 1.12, k = dw / sw, left = x + w / 2 - dw / 2, capH = ih * 0.35;
+      ctx.drawImage(im, sx, 0, sw, capH, left, top - 4, dw, capH * k);
+      const y0 = top - 4 + capH * k - 1;
+      if (far > y0) ctx.drawImage(im, sx, capH, sw, ih * 0.5, left, y0, dw, far - y0);
+    } else {
+      ctx.fillStyle = '#3a2a28'; ctx.strokeStyle = INK; ctx.lineWidth = 4;
+      ctx.beginPath(); rr(ctx, x - 2, top, w + 4, far - top + 20, 14); ctx.fill(); ctx.stroke();
+    }
+    const pulse = 0.65 + 0.35 * Math.sin((s.phase || 0) * 3 + t * 3);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const c of s.cracks || []) {
+      const pts = [];
+      let cx = x + w * c.u, cy = top + 10;
+      for (let i = 0; i < 5; i++) { pts.push([cx, cy]); cx += (i % 2 ? 1 : -1) * c.zig; cy += c.step; }
+      for (const [col, lw] of [[INK, 6], [`rgba(255,120,40,${pulse})`, 3.2], [`rgba(255,226,120,${pulse})`, 1.4]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = lw;
+        ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke();
+      }
+    }
+    glow(ctx, x + w / 2, top + 10, w * 0.45, '255,140,50', 0.5 * pulse);   // the molten crown
+  }
+
   // Storm cloud bank hanging down from the sky; `bottom` is the lower edge of the hitbox.
-  function stormCloud(ctx, x, bottom, w, s, t) {
-    const im = sprite('storm-cloud');
+  function stormCloud(ctx, x, bottom, w, s, t, lookName) {
+    const L = lookOf(lookName);
+    const im = tinted('storm-cloud', L.cloud);
     if (im) {
       // The painted cloud's wide, puffy crown is the bank: stretched up off the top of the screen,
       // and turned upside down for the underside so it's billowy right across the hitbox (the
@@ -261,7 +322,7 @@ window.Art = (() => {
       const capH = ih * 0.32 * k, capTop = bottom + 8 - capH;
       // the bank above: the crown's puffs stacked up off the screen, overlapping, mirrored every
       // other one so it doesn't read as a repeat
-      const cr = cloudCrown(im), ch = capH * 1.12;
+      const cr = cloudCrown(im, lookName || ''), ch = capH * 1.12;
       for (let y = capTop + ch * 0.15, i = 0; y > -ch - 40; y -= ch * 0.42, i++) {   // each copy's solid part covers the faded edge below it
         ctx.save(); ctx.translate(left + dw / 2, y); ctx.scale(i % 2 ? -1 : 1, 1);
         ctx.drawImage(cr, -dw / 2, -ch / 2, dw, ch);
@@ -271,11 +332,11 @@ window.Art = (() => {
       ctx.drawImage(cr, left, 0, dw, ch);
       ctx.restore();
       ctx.strokeStyle = 'rgba(200,220,255,0.55)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; L.rain && i < 4; i++) {
         const rx = x + ((i + 0.5) / 4) * w, ry = bottom + 4 + ((t * 160 + i * 23 + s.phase * 40) % 26);
         ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 7); ctx.stroke();
       }
-      if ((t + s.phase) % 2.6 < 0.14) {          // the lightning flicker stays
+      if (L.bolt && (t + s.phase) % 2.6 < 0.14) {          // the lightning flicker stays
         const bx = x + w * s.bolt;
         for (const [col, lw] of [[INK, 7], ['#ffe14d', 3.5]]) {
           ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineJoin = 'miter';
@@ -293,7 +354,7 @@ window.Art = (() => {
       sides.push({ x: x + 4 + j, y, r: 15 }, { x: x + w - 4 - j, y: y - 12, r: 15 });
     }
     const body = { x: x + 2, y: -40, w: w - 4, h: bottom - 14 + 40, r: 12 };
-    blob(ctx, [body, ...sides, ...puffs], '#50566b', 5);
+    blob(ctx, [body, ...sides, ...puffs], lookName === 'fog' ? '#b8bec6' : lookName === 'night' ? '#2c3260' : '#50566b', 5);
     ctx.fillStyle = '#687089';
     for (const p of [...sides, ...puffs]) {
       ctx.beginPath(); ctx.arc(p.x - p.r * 0.25, p.y - p.r * 0.3, p.r * 0.5, 0, TAU); ctx.fill();
@@ -301,12 +362,12 @@ window.Art = (() => {
 
     // Rain streaks and the odd lightning flicker below the cloud.
     ctx.strokeStyle = 'rgba(200,220,255,0.55)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; L.rain && i < 4; i++) {
       const rx = x + ((i + 0.5) / 4) * w;
       const ry = bottom + 4 + ((t * 160 + i * 23 + s.phase * 40) % 26);
       ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 7); ctx.stroke();
     }
-    if ((t + s.phase) % 2.6 < 0.14) {
+    if (L.bolt && (t + s.phase) % 2.6 < 0.14) {
       const bx = x + w * s.bolt;
       ctx.lineJoin = 'miter';
       for (const [col, lw] of [[INK, 7], ['#ffe14d', 3.5]]) {
@@ -331,6 +392,8 @@ window.Art = (() => {
       jitter: Array.from({ length: 5 }, () => rnd(-3, 4)),
       bolt: rnd(0.3, 0.7),
       phase: rnd(0, 2.6),
+      cracks: [{ u: rnd(0.38, 0.46), zig: rnd(3, 5), step: rnd(22, 34) }, { u: rnd(0.56, 0.64), zig: rnd(3, 5), step: rnd(26, 40) }],
+      lamp: rnd(0.3, 0.7),
     };
   }
 
@@ -383,12 +446,14 @@ window.Art = (() => {
 
   // British navy frigate facing left. `sink` runs 0→1 as it goes down;
   // `charge` 0→1 lights the bow gun just before it fires.
-  function frigate(ctx, x, y, t, sink, charge) {
+  // `opts` (the areas' variants): `tint` washes the painted sprite, `scale` resizes it.
+  function frigate(ctx, x, y, t, sink, charge, opts) {
     ctx.save();
     ctx.translate(x, y + sink * 60);
     ctx.rotate(sink ? -sink * 0.7 : Math.sin(t * 2) * 0.04);
-    ctx.globalAlpha = sink > 0.7 ? Math.max(0, (1 - sink) / 0.3) : 1;
-    const im = sprite('frigate');
+    ctx.globalAlpha *= sink > 0.7 ? Math.max(0, (1 - sink) / 0.3) : 1;
+    if (opts && opts.scale) ctx.scale(opts.scale, opts.scale);
+    const im = tinted('frigate', opts && opts.tint);
     if (im) { put(ctx, im, -2, 21, 100); muzzle(ctx, -50, -6, charge || 0); ctx.restore(); return; }
     ctx.scale(-1, 1);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -438,12 +503,13 @@ window.Art = (() => {
   }
 
   // Spanish treasure galleon facing left: tall, tubby, red and gold, three masts.
-  function galleon(ctx, x, y, t, sink, charge) {
+  function galleon(ctx, x, y, t, sink, charge, opts) {
     ctx.save();
     ctx.translate(x, y + sink * 70);
     ctx.rotate(sink ? sink * 0.6 : Math.sin(t * 1.6) * 0.03);
-    ctx.globalAlpha = sink > 0.7 ? Math.max(0, (1 - sink) / 0.3) : 1;
-    const im = sprite('galleon');
+    ctx.globalAlpha *= sink > 0.7 ? Math.max(0, (1 - sink) / 0.3) : 1;
+    if (opts && opts.scale) ctx.scale(opts.scale, opts.scale);
+    const im = tinted('galleon', opts && opts.tint);
     if (im) { put(ctx, im, -2, 25, 131); muzzle(ctx, -62, -8, charge || 0); ctx.restore(); return; }
     ctx.scale(-1, 1);
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -621,7 +687,7 @@ window.Art = (() => {
     ctx.save();
     ctx.translate(x, y + sink * 90);
     ctx.rotate(sink ? -sink * 0.5 : Math.sin(t * 1.3) * 0.025);
-    ctx.globalAlpha = sink > 0.75 ? Math.max(0, (1 - sink) / 0.25) : 1;
+    ctx.globalAlpha *= sink > 0.75 ? Math.max(0, (1 - sink) / 0.25) : 1;
     const im = sprite('man-o-war');
     if (im) {
       put(ctx, im, -5, 38, 172);
@@ -689,6 +755,138 @@ window.Art = (() => {
       ctx.beginPath(); ctx.arc(64, -12, 3 + charge * 7, 0, TAU); ctx.fill();
     }
     ctx.restore();
+  }
+
+
+  // ---------- the voyage's areas: variants and scenery (painted sprites reused, details in code) ----------
+
+  // A soft round glow (lanterns, ghosts, lava, the moon).
+  function glow(ctx, x, y, r, rgb, a) {
+    if (a <= 0) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+
+  // Revenue gunboat: a small dark-hulled frigate with a quick bow gun.
+  function gunboat(ctx, x, y, t, sink, charge) {
+    frigate(ctx, x, y, t, sink, charge, { scale: 0.74, tint: 'rgba(22,26,38,0.62)' });
+  }
+
+  // One cartoon flame, base at (x, y), `h` tall, flickering with t.
+  function flame(ctx, x, y, h, t) {
+    const f = Math.sin(t * 13 + x) * 0.18;
+    const shape = (k) => {
+      ctx.beginPath();
+      ctx.moveTo(x - 8 * k, y);
+      ctx.quadraticCurveTo(x - 10 * k, y - h * 0.5 * k, x + f * 20 * k, y - h * k);
+      ctx.quadraticCurveTo(x + 10 * k, y - h * 0.45 * k, x + 8 * k, y);
+      ctx.closePath();
+    };
+    ctx.lineJoin = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 2.5;
+    shape(1); ctx.fillStyle = '#ff7a2a'; ctx.fill(); ctx.stroke();
+    shape(0.6); ctx.fillStyle = '#ffe14d'; ctx.fill();
+  }
+
+  // Fire ship: a charred frigate packed with powder and set ablaze, sailed straight at you.
+  function fireship(ctx, x, y, t, sink, charge) {
+    const heat = 0.6 + charge * 0.4;
+    glow(ctx, x, y - 40, 90, '255,120,40', 0.35 * heat * (1 - sink));
+    frigate(ctx, x, y, t, sink, 0, { scale: 0.9, tint: 'rgba(48,24,16,0.58)' });
+    if (sink > 0.6) return;
+    for (let i = 0; i < 5; i++) flame(ctx, x - 34 + i * 16, y - 14 - (i % 2) * 18, (22 + Math.sin(t * 9 + i * 2) * 6) * heat, t + i);
+  }
+
+  // Ghost ship: a pale green spectre of a frigate or galleon; `solid` 0-1 fades it in and out.
+  function ghostShip(ctx, kind, x, y, t, sink, charge, solid) {
+    const a = (0.12 + 0.78 * solid) * (1 - Math.max(0, sink - 0.3));
+    glow(ctx, x, y - 40, 110, '120,255,200', 0.28 * a);
+    ctx.save();
+    ctx.globalAlpha *= a;
+    const draw = kind === 'galleon' ? galleon : frigate;
+    draw(ctx, x, y + Math.sin(t * 1.3) * 4, t, sink, charge, { tint: 'rgba(150,255,215,0.6)' });
+    ctx.restore();
+  }
+
+  // Ghost fire: green spectral shot.
+  function ghostShot(ctx, x, y, r, t) {
+    glow(ctx, x, y, r * 3, '120,255,190', 0.55);
+    ctx.fillStyle = '#c9ffe6'; ctx.strokeStyle = '#1d5a48'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, r * (0.9 + Math.sin(t * 20 + x) * 0.1), 0, TAU); ctx.fill(); ctx.stroke();
+  }
+
+  // Hanging ship's lantern (Fog Banks); `hang` true hangs it from a rope above.
+  function lantern(ctx, x, y, t, hang) {
+    const sway = hang ? Math.sin(t * 2 + x * 0.05) * 0.12 : 0;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(sway);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    if (hang) { ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(0, -10); ctx.stroke(); }
+    else box(ctx, -2, 9, 4, 18, '#5a3a1f', 1);                       // a post into the sand
+    ctx.fillStyle = '#ffd86b';
+    ctx.beginPath(); rr(ctx, -6, -8, 12, 16, 3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#4b4b55';
+    ctx.beginPath(); rr(ctx, -8, -12, 16, 5, 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); rr(ctx, -8, 7, 16, 4, 2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Whirlpool: rings of foam spinning into a dark eye (Fog Banks); it tugs the ship toward it.
+  function whirlpool(ctx, x, y, r, t) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(10,30,50,0.75)'); g.addColorStop(0.6, 'rgba(20,60,90,0.35)'); g.addColorStop(1, 'rgba(20,60,90,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.8, 0, 0, TAU); ctx.fill();
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) {
+      const rad = r * (0.9 - k * 0.2), a0 = -t * (2.2 + k * 0.8) + k * 1.7;
+      for (const [col, lw] of [['rgba(28,21,18,0.55)', 5], ['rgba(235,250,255,0.85)', 2.5]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.ellipse(x, y, rad, rad * 0.8, 0, a0, a0 + Math.PI * 1.25); ctx.stroke();
+      }
+    }
+  }
+
+  // Night sky: the full moon, with its glow.
+  function moon(ctx, x, y, r) {
+    glow(ctx, x, y, r * 3.2, '220,235,255', 0.35);
+    ctx.fillStyle = '#f4f1dc'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#dcd6b8';
+    for (const [dx, dy, cr] of [[-0.3, -0.2, 0.22], [0.25, 0.25, 0.16], [0.3, -0.3, 0.1]]) {
+      ctx.beginPath(); ctx.arc(x + dx * r, y + dy * r, cr * r, 0, TAU); ctx.fill();
+    }
+  }
+
+  // Low evening sun on the horizon (Admiral's Blockade).
+  function sun(ctx, x, y, r) {
+    glow(ctx, x, y, r * 3, '255,200,120', 0.5);
+    ctx.fillStyle = '#ffd36b'; ctx.strokeStyle = INK; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, r, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+
+  // Volcano on the horizon with a smoking, glowing crater. `y` is the horizon.
+  function volcano(ctx, x, y, t) {
+    for (let i = 0; i < 6; i++) {     // smoke plume drifting up and back
+      const k = ((t * 0.25 + i / 6) % 1);
+      ctx.fillStyle = `rgba(60,48,48,${0.5 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(x + 4 - k * 40, y - 58 - k * 60, 8 + k * 18, 0, TAU); ctx.fill();
+    }
+    glow(ctx, x, y - 56, 40, '255,120,40', 0.6);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.fillStyle = '#4a2f2c';
+    ctx.beginPath();
+    ctx.moveTo(x - 90, y); ctx.quadraticCurveTo(x - 40, y - 30, x - 14, y - 56); ctx.lineTo(x + 14, y - 56);
+    ctx.quadraticCurveTo(x + 40, y - 30, x + 90, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#ff8a2a'; ctx.lineWidth = 3; ctx.lineCap = 'round';   // lava running down
+    ctx.beginPath(); ctx.moveTo(x - 4, y - 54); ctx.quadraticCurveTo(x - 12, y - 34, x - 22, y - 14);
+    ctx.moveTo(x + 6, y - 54); ctx.quadraticCurveTo(x + 12, y - 40, x + 18, y - 26); ctx.stroke();
+  }
+
+  // A wreck's broken masts poking out of the sea (Ghost Waters horizon). `y` is the horizon.
+  function wreck(ctx, x, y) {
+    ctx.fillStyle = 'rgba(14,20,40,0.85)';
+    ctx.beginPath(); ctx.moveTo(x - 40, y); ctx.lineTo(x - 30, y - 10); ctx.lineTo(x + 26, y - 14); ctx.lineTo(x + 40, y); ctx.closePath(); ctx.fill();
+    ctx.fillRect(x - 12, y - 52, 4, 42); ctx.fillRect(x + 10, y - 36, 4, 24);
+    ctx.beginPath(); ctx.moveTo(x - 8, y - 48); ctx.lineTo(x + 8, y - 40); ctx.lineTo(x - 8, y - 30); ctx.closePath(); ctx.fill();
   }
 
   function bossBar(ctx, x, y, w, frac, name) {
@@ -810,11 +1008,11 @@ window.Art = (() => {
     }
   }
 
-  function cloud(ctx, x, y, s) {
+  function cloud(ctx, x, y, s, fill = '#ffffff') {
     blob(ctx, [
       { x: x, y: y, r: 18 * s }, { x: x + 22 * s, y: y - 10 * s, r: 22 * s },
       { x: x + 46 * s, y: y, r: 17 * s }, { x: x - 4 * s, y: y - 6 * s, w: 54 * s, h: 20 * s, r: 10 * s },
-    ], '#ffffff', 4);
+    ], fill, 4);
   }
 
   // Big outlined title text.
@@ -830,5 +1028,9 @@ window.Art = (() => {
     ctx.fillText(str, x, y);
   }
 
-  return { INK, blob, ship, frigate, galleon, manOWar, bossBar, chest, barrel, pips, burst, gull, distantSail, panel, label, ribbon, pauseButton, cannonball, fireButton, sandbar, stormCloud, makeObstacle, island, cloud, text, rr };
+  return {
+    INK, blob, ship, frigate, galleon, manOWar, bossBar, chest, barrel, pips, burst, gull, distantSail, panel, label, ribbon,
+    pauseButton, cannonball, fireButton, sandbar, stormCloud, makeObstacle, island, cloud, text, rr,
+    glow, gunboat, fireship, ghostShip, ghostShot, flame, lantern, whirlpool, moon, sun, volcano, wreck,
+  };
 })();

@@ -139,7 +139,8 @@
 <canvas id="game" role="img" aria-label="Reef Runner, a pirate arcade game" aria-describedby="game-help"></canvas>
 <p id="game-help" class="sr-only">Steer your pirate ship between storm clouds and sandbars and sink enemy warships.
   Sail up with Space, Up arrow, W or a tap on the sea. Fire with F, X, Right arrow or Enter, or the Fire button.
-  P or Escape pauses, M mutes. Game events and your score at the end of each run are announced.</p>
+  P or Escape pauses, M mutes. On the title screen, Left and Right arrows pick which unlocked area to set sail from.
+  Game events, each new area and your score at the end of each run are announced.</p>
 <div id="status" class="sr-only" role="status" aria-live="polite"></div>
 <div id="splash"><img src="assets/logo-600.webp" alt="Reef Runner"><div class="bar"><i></i></div></div>
 <div id="rotate">Turn your phone sideways for a bigger sea ↻</div>
@@ -177,6 +178,7 @@
 <script src="js/art.js"></script>
 <script src="js/sfx.js"></script>
 <script src="js/pad.js"></script>
+<script src="js/voyage.js"></script>
 <script src="js/game.js"></script>
 <script>
   // Offline support when served over http(s); a double-clicked file doesn't need it.
