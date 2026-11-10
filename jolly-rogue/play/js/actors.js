@@ -6,7 +6,7 @@
   // Everything that lives in a run besides the level and the player.
   // events: sound/effect cues for the game to play this frame ('shot', 'kill', ...).
   JR.makeWorld = seed => ({
-    rand: JR.rng(seed ^ 0x5eed), shots: [], enemies: [], pickups: [], fx: [], events: [], corpses: [],
+    rand: JR.rng(seed ^ 0x5eed), shots: [], enemies: [], pickups: [], fx: [], events: [], corpses: [], hazards: [],
   });
 
   const emit = (w, name, x, y) => w.events.push({ name, x, y });
@@ -42,6 +42,29 @@
     p.pet = equip.pet;
     p.look = equip;
     return p;
+  };
+
+  // Spikes (and the beach's sea urchins) and lava, from the level's tiles. Spikes fill the lower half
+  // of their cell: feet in there hurt, and always bounce the pirate up so nobody stands in them.
+  // Lava hurts and puts the pirate back on the last safe ground, like falling off the world.
+  JR.tileHazards = (p, lv, w) => {
+    const T = JR.TILE, r = Math.floor((p.y + p.h - 1) / T), depth = p.y + p.h - r * T;
+    const c0 = Math.floor((p.x + 1) / T), c1 = Math.floor((p.x + p.w - 2) / T);
+    let spike = false, lava = false;
+    for (let c = c0; c <= c1; c++) { if (lv.spikes(c, r)) spike = true; if (lv.lava(c, r)) lava = true; }
+    if (spike && depth > 8) {
+      JR.hurt(p, w);
+      p.vy = JR.JUMP_VEL * 0.72; p.onGround = false; p.usedDouble = false;
+      emit(w, 'spike', p.x + p.w / 2, p.y + p.h);
+    } else if (lava && depth > 5) {
+      JR.hurt(p, w);
+      w.fx.push({ type: 'boom', x: p.x + p.w / 2, y: r * T + 4, r: 14, t: 0.4 });
+      emit(w, 'sizzle', p.x, p.y);
+      if (!p.dead) {
+        p.x = p.safeX; p.y = p.safeY - (24 - p.h); p.vx = p.vy = 0;
+        p.inv = Math.max(p.inv, 1);
+      }
+    }
   };
 
   JR.hurt = (p, w) => {
@@ -159,7 +182,8 @@
     // Remember the last spot of solid ground under both feet, to respawn after a fall.
     if (p.onGround) {
       const r = Math.floor((p.y + p.h + 1) / T());
-      if (lv.solid(Math.floor(p.x / T()), r) && lv.solid(Math.floor((p.x + p.w - 1) / T()), r)) {
+      const l = Math.floor(p.x / T()), rt = Math.floor((p.x + p.w - 1) / T());
+      if (lv.solid(l, r) && lv.solid(rt, r) && !(lv.spikes && (lv.spikes(l, r - 1) || lv.spikes(rt, r - 1)))) {
         p.safeX = p.x; p.safeY = p.y;
       }
     }
@@ -172,12 +196,14 @@
       }
     }
 
+    if (lv.spikes) JR.tileHazards(p, lv, w);
+
     // Fire is held for auto-fire. Close enemies get the blade instead of a bullet.
     if (input.fire && p.cool <= 0) {
       const melee = JR.WEAPONS[p.melee];
       if (JR.inMeleeRange(p, w.enemies, melee)) {
         const box = JR.meleeBox(p, melee);
-        for (const e of w.enemies) if (e.hp > 0 && JR.overlap(box, e)) damage(e, melee.dmg * p.meleeMult, p, w);
+        for (const e of w.enemies) if (e.hp > 0 && !e.phased && JR.overlap(box, e)) damage(e, melee.dmg * p.meleeMult, p, w);
         // Sword combo: strikes 1-2-3 chain when they come quickly; in the air, two air attacks alternate.
         const quick = p.clock - (p.lastStrike ?? -9) <= Math.max(0.35, melee.cooldown + 0.1);
         if (!p.onGround) p.strike = quick && p.strike === 'air1' ? 'air2' : 'air1';
@@ -225,6 +251,8 @@
     if (e.prop) {
       emit(w, 'break', e.x, e.y);
       w.fx.push({ type: 'splinters', x: e.x + e.w / 2, y: e.y + e.h / 2, t: 0.45 });
+      // A powder keg goes up and takes the crew around it (and any keg beside it) with it.
+      if (e.type === 'k') JR.explode(w, { x: e.x + e.w / 2, y: e.y + e.h / 2, boom: 36, dmg: 3, friendly: true }, p);
     } else {
       p.kills += 1;
       emit(w, 'kill', e.x, e.y);
@@ -287,7 +315,7 @@
     w.shots = w.shots.filter(s => {
       const box = shotBox(s);
       if (s.friendly) {
-        const e = w.enemies.find(e => e.hp > 0 && JR.overlap(box, e) && !(s.hit && s.hit.includes(e)));
+        const e = w.enemies.find(e => e.hp > 0 && !e.phased && JR.overlap(box, e) && !(s.hit && s.hit.includes(e)));
         if (!e) return true;
         if (s.boom) { JR.explode(w, s, p); return false; }
         damage(e, s.dmg, p, w);
@@ -303,7 +331,7 @@
     // pirate bounces up with the double jump restored, so stabs chain across a crew. Anything else
     // that touches the pirate still hurts.
     for (const e of w.enemies) {
-      if (e.hp <= 0 || !JR.overlap(e, p)) continue;
+      if (e.hp <= 0 || e.phased || !JR.overlap(e, p)) continue;
       const feet = p.y + p.h;
       if (p.vy > 0 && feet - e.y <= JR.STOMP_DEPTH + p.vy / 60) { stab(e, p, w); continue; }
       if (!e.prop) JR.hurt(p, w);

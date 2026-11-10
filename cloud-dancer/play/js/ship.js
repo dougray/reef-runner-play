@@ -8,7 +8,7 @@
     hearts: CD.MAX_HEARTS, maxHearts: CD.MAX_HEARTS, lives: CD.LIVES, inv: 0, dead: false,
     steamMax: CD.STEAM_MAX, fireMult: 1, magnet: false, pet: 'none', look: null,
     spread: 0, heavy: 0, burst: false, rear: false, wingmen: 0, shield: false, gunRack: false,   // upgrades
-    steam: CD.STEAM_MAX, dash: 0, dashCool: 0, fireCool: 0, t: 0, weapon: 'cannon', weaponT: 0,
+    steam: CD.STEAM_MAX, ice: 0, dash: 0, dashCool: 0, fireCool: 0, t: 0, weapon: 'cannon', weaponT: 0,
   });
 
   CD.shipInvulnerable = s => s.inv > 0 || s.dash > 0;
@@ -28,14 +28,15 @@
     }
 
     let vx = 0, vy = 0;
+    const iced = 1 - (s.ice || 0) * 0.45;            // the Frozen Heights: ice on the rigging slows the steering
     const kx = (input.right ? 1 : 0) - (input.left ? 1 : 0), ky = (input.down ? 1 : 0) - (input.up ? 1 : 0);
     if (kx || ky) {
       const len = Math.hypot(kx, ky);
-      vx = (kx / len) * CD.SHIP_SPEED; vy = (ky / len) * CD.SHIP_SPEED;
+      vx = (kx / len) * CD.SHIP_SPEED * iced; vy = (ky / len) * CD.SHIP_SPEED * iced;
     } else if (input.target) {
       // ease toward the touch point, a little quicker than key speed at most
       const dx = input.target.x - (s.x + s.w / 2), dy = input.target.y - (s.y + s.h / 2);
-      const k = 10, max = CD.SHIP_SPEED * 1.4;
+      const k = 10, max = CD.SHIP_SPEED * 1.4 * iced;
       vx = dx * k; vy = dy * k;
       const sp = Math.hypot(vx, vy);
       if (sp > max) { vx = (vx / sp) * max; vy = (vy / sp) * max; }

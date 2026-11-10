@@ -62,6 +62,35 @@
     return { banked: w.gold, newBest: w.score > prev };
   };
 
+  // ---------- checkpoints ----------
+  // Stages reached on this device, in localStorage under cd.stages as { reached, start }: the
+  // furthest stage flown into (0 = only the first) and the one the next run sets sail from. Kept
+  // apart from cd.profile so an old save, or a bad value in either, never costs the other.
+  CD.STAGE_KEY = 'cd.stages';
+  const stageIndex = v => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(0, Math.min(CD.AREAS.length - 1, n)) : 0; };
+  CD.loadStages = store => {
+    let saved = null;
+    try { saved = JSON.parse(store.getItem(CD.STAGE_KEY)); } catch (e) { /* blocked storage or junk */ }
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return { reached: 0, start: 0 };
+    const reached = stageIndex(saved.reached);
+    return { reached, start: Math.min(stageIndex(saved.start), reached) };
+  };
+  CD.saveStages = (store, st) => { try { store.setItem(CD.STAGE_KEY, JSON.stringify({ reached: st.reached, start: st.start })); } catch (e) { /* private window: play on */ } };
+  // Flying into stage `index` for the first time unlocks it; true when that's new.
+  CD.unlockStage = (st, index) => {
+    const i = stageIndex(index);
+    if (i <= st.reached) return false;
+    st.reached = i;
+    return true;
+  };
+  // Left / right on the title: the next unlocked stage to start from, wrapping round.
+  CD.pickStage = (st, dir) => { const n = st.reached + 1; st.start = (((st.start + dir) % n) + n) % n; return st.start; };
+  // A run from a checkpoint starts at the Sky Market with a stake to fit out with: about what an
+  // average pilot has earned by then (tools/balance.mjs: ~110 a stage flying perfectly). It is only
+  // for the market; what isn't spent stays in port, so it never reaches the chest.
+  CD.STAKE_PER_STAGE = 90;
+  CD.stakeFor = index => CD.STAKE_PER_STAGE * stageIndex(index);
+
   // What the Hangar fit-out does to a fresh ship.
   CD.applyLoadout = (s, equip) => {
     s.look = { envelope: equip.envelope, pattern: equip.pattern, sail: equip.sail, hull: equip.hull };

@@ -76,6 +76,14 @@
     hurt() { tone(220, 0.25, 'sawtooth', 0.12, 70); },
     lifeLost() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.16, 'triangle', 0.15, null, i * 0.12)); },
     start() { [392, 523, 659, 784].forEach((f, i) => tone(f, 0.1, 'square', 0.07, null, i * 0.07)); },
+    // The voyage update: lava vents, the fleet's mortars, the drowned captain, storms, hazards.
+    erupt() { noise(0.4, 0.35, 'lowpass', 500, 90); tone(70, 0.3, 'sawtooth', 0.12, 40); },
+    incoming() { tone(1600, 0.45, 'sine', 0.06, 500); },
+    blink() { tone(900, 0.25, 'sine', 0.07, 300); tone(450, 0.3, 'triangle', 0.05, 900, 0.1); },
+    thunder() { noise(1.2, 0.35, 'lowpass', 300, 60); },
+    spike() { tone(260, 0.12, 'square', 0.08, 120); },
+    sizzle() { noise(0.35, 0.25, 'highpass', 3000, 6000); },
+    checkpoint() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, 0.1, 'square', 0.07, null, i * 0.07)); },
     gameover() { [330, 311, 294, 262].forEach((f, i) => tone(f, 0.3, 'triangle', 0.16, null, i * 0.25)); },
   };
 

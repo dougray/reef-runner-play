@@ -13,9 +13,22 @@
     n: { w: 20, h: 20, hp: 6 },              // cannon: level shots you can duck
     c: { w: 14, h: 14, hp: 2, prop: true },  // crate
     $: { w: 14, h: 12, hp: 1, prop: true },  // treasure chest
+    k: { w: 12, h: 12, hp: 1, prop: true },  // powder keg: shoot it and it blows up the crew around it
+    v: { w: 12, h: 10, hp: 1 },              // bat: flaps toward you, drifting to your height
+    g: { w: 12, h: 24, hp: 2 },              // drowned sailor: fades in and out; shots pass through a faded one
   };
   // Which sprite a fallen one uses.
-  JR.LOOKS = { d: 'sailor', m: 'marine', s: 'marine', b: 'grenadier', f: 'officer', B: 'boss' };
+  JR.LOOKS = { d: 'sailor', m: 'marine', s: 'marine', b: 'grenadier', f: 'officer', g: 'sailor', v: 'bat', B: 'boss' };
+
+  // A drowned sailor's solidity, 0 (a faint shimmer: shots and blades pass through, it can't hurt
+  // you) to 1, over a 3.6 s cycle: fade in, hold, fade out, linger unseen. Same as Reef Runner's ghosts.
+  JR.ghostSolid = t => {
+    const c = ((t % 3.6) + 3.6) % 3.6;
+    if (c < 0.6) return c / 0.6;
+    if (c < 2.4) return 1;
+    if (c < 3.0) return 1 - (c - 2.4) / 0.6;
+    return 0;
+  };
 
   JR.makeEnemy = (type, x, y, nation = 'british') => {
     const d = JR.ENEMY_DEFS[type];
@@ -24,6 +37,8 @@
       vx: 0, vy: 0, facing: -1, onGround: false, active: false,
       timer: { m: 1.4, s: 1.6, b: 1.2, f: 1.0, n: 1.5 }[type] || 0,
       tell: false, flash: 0, t: 0, burst: 0, burstT: 0,
+      // Drowned sailors start part-way through their cycle, so a crew doesn't blink in step.
+      ...(type === 'g' ? { t: (Math.abs(Math.floor(x / 16)) % 6) * 0.6, fade: 1, phased: false } : {}),
     };
   };
 
@@ -53,12 +68,29 @@
     e.fired = Math.max(0, (e.fired || 0) - dt);
     const cx = e.x + e.w / 2;
     const dx = p.x + p.w / 2 - cx;
-    const range = { d: 280, m: 280, s: 360, b: 280, f: 300, n: 330 }[e.type] || 0;
+    const range = { d: 280, m: 280, s: 360, b: 280, f: 300, n: 330, v: 250, g: 280 }[e.type] || 0;
     if (Math.abs(dx) < range) e.active = true;
     if (!e.prop) e.facing = dx < 0 ? -1 : 1;
     const gun = { x: cx + e.facing * 10, y: e.y + 8 };
 
+    if (e.type === 'v') {                              // bats fly: no gravity, no walls
+      if (e.home == null) e.home = e.y;
+      if (e.active) {
+        e.vx = e.facing * 58;
+        e.home += JR.clamp(p.y + 2 - e.home, -26, 26) * dt;
+        e.x += e.vx * dt;
+      }
+      e.y = e.home + Math.sin(e.t * 4) * 10;
+      return;
+    }
+
     switch (e.type) {
+      case 'g':
+        e.fade = JR.ghostSolid(e.t);
+        e.phased = e.fade < 0.5;
+        e.vx = e.active ? e.facing * (e.phased ? 62 : 38) : 0;
+        if (e.active && e.hitWall && e.onGround) e.vy = -280;
+        break;
       case 'd':
         e.vx = e.active ? e.facing * 55 : 0;
         if (e.active && e.hitWall && e.onGround) e.vy = -280;   // hop up dunes and steps
@@ -151,6 +183,67 @@
         break;
       }
       default: for (let i = 0, n = 1 + (w.rand() < 0.5); i < n; i++) coin(w, x, y, (i - (n - 1) / 2) * 24, -160);
+    }
+  };
+
+  // ---------- hazards: part of the level, not the crew (no health, nothing to shoot) ----------
+  //   e  lava vent: rumbles (smoke, glow) then spits three rocks that arc up and fall
+  //   y  mortar: while you're in its stretch of deck, the fleet marks where you're heading,
+  //      then a shell lands there a second later
+  //   z  dart trap: a stone idol that spits a dart at you when you're in front of it (its left)
+  JR.HAZARD_DEFS = { e: { every: 2.6, tell: 0.7 }, y: { every: 3.0, tell: 0 }, z: { every: 2.2, tell: 0.45 } };
+  JR.makeHazard = s => ({
+    type: s.type, x: s.x, y: s.y, w: 16, h: 16, nation: s.nation,
+    timer: 1 + (Math.abs(Math.floor(s.x / 16)) % 4) * 0.4, tell: false, t: 0, fired: 0, pending: null,
+  });
+
+  // The top of the ground under column c (world y), or below the world when it's a pit.
+  const groundY = (lv, c) => { for (let r = 3; r < JR.ROWS; r++) if (lv.solid(c, r) || lv.platform(c, r)) return r * JR.TILE; return JR.WORLD_H + 40; };
+  JR.groundY = groundY;
+
+  JR.updateHazard = (h, p, lv, w, dt, camX = 0) => {
+    h.t += dt;
+    h.fired = Math.max(0, h.fired - dt);
+    const def = JR.HAZARD_DEFS[h.type];
+    const px = p.x + p.w / 2, cx = h.x + 8;
+    if (h.type === 'e') {
+      if (Math.abs(px - cx) > 300) { h.tell = false; return; }
+      cycle(h, dt, def.tell, def.every, () => {
+        for (let i = 0; i < 3; i++) {
+          w.shots.push({ x: cx, y: h.y + 6, vx: (i - 1) * 55 + (w.rand() - 0.5) * 20, vy: -330 - i * 25, grav: true, r: 3, life: 3, dmg: 1, friendly: false, lava: true });
+        }
+        w.fx.push({ type: 'smoke', x: cx, y: h.y + 4, t: 0.4 });
+        emit(w, 'erupt', cx, h.y);
+      });
+    } else if (h.type === 'y') {
+      // Only along its own chunk of deck (30 tiles), and the shell already in the air still lands.
+      const inside = px > h.x - 32 && px < h.x + 30 * JR.TILE;
+      if (h.pending) {
+        h.pending.t -= dt;
+        if (!h.pending.shot && h.pending.t <= 0.47) {      // a shell from above the screen takes ~0.47 s
+          h.pending.shot = true;
+          w.shots.push({ x: h.pending.x, y: JR.CAM_Y - 12, vx: 0, vy: 200, grav: true, r: 4, life: 3, dmg: 1, friendly: false, boom: 24, shell: true });
+          emit(w, 'incoming', h.pending.x, JR.CAM_Y);
+        }
+        if (h.pending.t <= 0) h.pending = null;
+      }
+      if (!inside) return;
+      h.timer -= dt;
+      if (h.timer <= 0 && !h.pending) {
+        h.timer = def.every;
+        const tx = JR.clamp(px + p.vx * 1.0, camX + 20, camX + JR.VIEW_W - 20);
+        const ty = groundY(lv, Math.floor(tx / JR.TILE));
+        h.pending = { x: tx, y: ty, t: 1.0, shot: false };
+        w.fx.push({ type: 'mark', x: tx, y: Math.min(ty, JR.WORLD_H - 8), t: 1.0 });
+      }
+    } else if (h.type === 'z') {
+      const dx = px - cx;
+      if (dx > 0 || dx < -320 || Math.abs(p.y - h.y) > 140) { h.tell = false; return; }
+      cycle(h, dt, def.tell, def.every, () => {
+        const from = { x: h.x + 1, y: h.y + 7 };
+        aimed(w, from, p, 150, { dagger: true, dart: true, life: 2.6 });
+        emit(w, 'throw', from.x, from.y);
+      });
     }
   };
 })();

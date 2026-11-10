@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#3c8cec">
-<meta name="description" content="A pirate run-and-gun: fight four rival crews and their bosses, grab gold, dress your pirate. Runs entirely on your device.">
+<meta name="description" content="A pirate run-and-gun: eight levels, eight rival crews and their bosses. Grab gold, dress your pirate. Runs entirely on your device.">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -85,7 +85,7 @@
   rival crews and their bosses and grabbing gold. Keyboard: arrow keys or WASD move and aim, Space or Z jumps,
   X, J or F fires (your blade swings when a sailor is close), P or Escape pauses, M mutes, C opens the
   Captain's Quarters from the title screen. On a phone: drag on the left side to move and aim, and use the JUMP
-  and FIRE buttons. Areas, bosses, victories and your final score are announced.</p>
+  and FIRE buttons. Levels, checkpoints, bosses, victories and your final score are announced.</p>
 <div id="status" class="sr-only" role="status" aria-live="polite"></div>
 <div id="dpad" aria-hidden="true"><i class="h"></i><i class="v"></i><i class="hub"></i><b class="u"></b><b class="r"></b><b class="d"></b><b class="l"></b></div>
 <div id="pad">
@@ -96,6 +96,7 @@
 <button class="corner" id="btn-mute" aria-label="Mute sound">&#9834;</button>
 <!-- Classic scripts (not ES modules) so the game also runs when opened as a local file. -->
 <script src="js/core.js"></script>
+<script src="js/voyage.js"></script>
 <script src="js/chunks.js"></script>
 <script src="js/level.js"></script>
 <script src="js/weapons.js"></script>
@@ -115,6 +116,7 @@
 <script src="js/packart.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/art-world.js"></script>
+<script src="js/art-areas.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/art.js"></script>
 <script src="js/sfx.js"></script>

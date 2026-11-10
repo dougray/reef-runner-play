@@ -49,32 +49,144 @@
     ctx.globalAlpha = alpha; ctx.drawImage(im, x - w / 2, y - h / 2, w, h); ctx.globalAlpha = 1;
   }
   // Cumulus sprites are painted white; each area tints them (multiply).
-  const CLOUD_TINT = { storm: '#9ea8ba', forts: '#ffd4bf', ceiling: '#e2e8ff' };
-  const painted = area => art.sprite('sky-' + area) && art.sprite('far-' + area) && art.sprite('band-' + area) && art.sprite('cloud-4');
+  const CLOUD_TINT = { storm: '#9ea8ba', forts: '#ffd4bf', ceiling: '#e2e8ff', night: '#56608a', frost: '#f2f9ff', ash: '#8a7670', thunder: '#7a8298', citadel: '#f0c4d4' };
+  // The five newer skies are the four painted ones, colour-graded (a multiply over the scenery) and
+  // dressed with code-drawn weather: `base` painted sky, `grade` colour.
+  const LOOKS = {
+    night: { base: 'reef', grade: '#2c3868' },
+    frost: { base: 'ceiling', grade: '#d6ebff' },
+    ash: { base: 'storm', grade: '#d27c52' },
+    thunder: { base: 'storm', grade: '#767e9c' },
+    citadel: { base: 'forts', grade: '#e2b2cc' },
+  };
+  const baseOf = area => (LOOKS[area] ? LOOKS[area].base : area);
+  const painted = area => { const b = baseOf(area); return art.sprite('sky-' + b) && art.sprite('far-' + b) && art.sprite('band-' + b) && art.sprite('cloud-4'); };
+  // A cheap repeatable "random" for scenery dots: the same every frame.
+  const hash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
   art.drawSky = (ctx, dist, t, area = 'reef') => {
     if (painted(area)) {
-      ctx.drawImage(art.sprite('sky-' + area), 0, 0, W(), H());
-      for (let i = 0; i < 4; i++) cumulus(ctx, i + 2, wrap(i * 150 + 40 - dist * 0.12, 600, 60), 22 + (i % 2) * 20, 46, 0.75, area);   // high, small
-      if (art.sprite('isles-' + area)) tileX(ctx, art.sprite('isles-' + area), -dist * 0.1);
-      tileX(ctx, art.sprite('band-' + area), -dist * 0.05);
-      tileX(ctx, art.sprite('far-' + area), -dist * 0.08);
-      for (let i = 0; i < 5; i++) cumulus(ctx, i, wrap(i * 120 - dist * 0.3, 600, 70), 112 + (i % 2) * 12, 74 + (i % 3) * 12, 0.95, area);   // behind the ship
+      const b = baseOf(area);
+      ctx.drawImage(art.sprite('sky-' + b), 0, 0, W(), H());
+      if (area === 'night') nightSky(ctx, t);
+      for (let i = 0; i < 4; i++) cumulus(ctx, i + 2, wrap(i * 150 + 40 - dist * 0.12, 600, 60), 22 + (i % 2) * 20, 46, 0.75, b);   // high, small
+      if (area === 'citadel') farCitadel(ctx, dist, t);
+      if (art.sprite('isles-' + b)) tileX(ctx, art.sprite('isles-' + b), -dist * 0.1);
+      if (area === 'ash') volcano(ctx, dist, t);
+      tileX(ctx, art.sprite('band-' + b), -dist * 0.05);
+      tileX(ctx, art.sprite('far-' + b), -dist * 0.08);
+      for (let i = 0; i < 5; i++) cumulus(ctx, i, wrap(i * 120 - dist * 0.3, 600, 70), 112 + (i % 2) * 12, 74 + (i % 3) * 12, 0.95, b);   // behind the ship
+      if (LOOKS[area]) grade(ctx, area, dist, t);
       return;
     }
   };
 
-  // Near clouds drift in front of everything.
+  // The grade over the scenery, then what each graded sky adds on top of it.
+  function grade(ctx, area, dist, t) {
+    ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = LOOKS[area].grade; ctx.fillRect(0, 0, W(), H());
+    ctx.globalCompositeOperation = 'source-over';
+    if (area === 'night') {
+      // stars (above the scenery), the moon, and far-off searchlights sweeping up from the sea
+      for (let i = 0; i < 46; i++) {
+        const x = hash(i) * W(), y = hash(i + 99) * 70, tw = 0.5 + 0.5 * Math.sin(t * (1 + hash(i + 7) * 3) + i);
+        ctx.fillStyle = `rgba(255,250,230,${0.35 + 0.55 * tw})`; ctx.fillRect(x, y, 0.9, 0.9);
+      }
+      glow(ctx, 318, 34, 7, '#fff8dc', 'rgba(200,220,255,.25)');
+      ellipse(ctx, 318, 34, 9, 9, '#f6f0d6', 0);
+      ellipse(ctx, 315, 31, 2, 1.6, 'rgba(180,170,140,.5)', 0); ellipse(ctx, 321, 37, 1.4, 1.2, 'rgba(180,170,140,.5)', 0);
+      for (let i = 0; i < 3; i++) {
+        const x0 = wrap(i * 160 + 60 - dist * 0.08, 480, 50), a = -Math.PI / 2 + Math.sin(t * 0.4 + i * 2) * 0.5;
+        beam(ctx, x0, H(), a, 260, 0.07, 'rgba(255,248,210,.10)');
+      }
+    } else if (area === 'frost') {
+      const g = ctx.createLinearGradient(0, 120, 0, H()); g.addColorStop(0, 'rgba(240,248,255,0)'); g.addColorStop(1, 'rgba(240,248,255,.55)');
+      ctx.fillStyle = g; ctx.fillRect(0, 120, W(), H() - 120);
+      for (let i = 0; i < 14; i++) {                    // ice crystals glinting in the thin air
+        if (Math.sin(t * 2 + i * 1.7) < 0.85) continue;
+        glow(ctx, wrap(hash(i) * 600 - dist * 0.2, 420, 20), 20 + hash(i + 3) * 120, 0.8, '#ffffff', 'rgba(200,230,255,.6)');
+      }
+    } else if (area === 'ash') {
+      const g = ctx.createLinearGradient(0, 140, 0, H()); g.addColorStop(0, 'rgba(255,90,30,0)'); g.addColorStop(1, 'rgba(255,90,30,.4)');
+      ctx.fillStyle = g; ctx.fillRect(0, 140, W(), H() - 140);
+    } else if (area === 'thunder') {
+      const k = (t * 0.37) % 1;                         // sheet lightning in the far clouds now and then
+      if (k < 0.06 && Math.floor(t * 0.37) % 3 === 0) { ctx.fillStyle = `rgba(220,230,255,${0.18 * (1 - k / 0.06)})`; ctx.fillRect(0, 0, W(), H()); }
+    } else if (area === 'citadel') {
+      for (let i = 0; i < 6; i++) {                     // flak bursting far off over the citadel
+        const c = (t * 0.6 + hash(i) * 3) % 3;
+        if (c > 0.7) continue;
+        const x = wrap(hash(i + 5) * 500 - dist * 0.1, 440, 30), y = 20 + hash(i + 9) * 60;
+        ellipse(ctx, x, y, 2 + c * 6, 2 + c * 5, `rgba(70,56,70,${0.45 * (1 - c / 0.7)})`, 0);
+        if (c < 0.1) glow(ctx, x, y, 1.6, '#ffd34e', 'rgba(255,140,40,.4)');
+      }
+    }
+  }
+  function nightSky(ctx) {
+    const g = ctx.createLinearGradient(0, 0, 0, 90); g.addColorStop(0, 'rgba(8,10,30,.35)'); g.addColorStop(1, 'rgba(8,10,30,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W(), 90);
+  }
+  // A searchlight beam: a soft cone from (x, y) at angle `a`.
+  function beam(ctx, x, y, a, len, half, colour) {
+    const g = ctx.createLinearGradient(x, y, x + Math.cos(a) * len, y + Math.sin(a) * len);
+    g.addColorStop(0, colour); g.addColorStop(1, 'rgba(255,248,210,0)');
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a - half) * len, y + Math.sin(a - half) * len);
+    ctx.lineTo(x + Math.cos(a + half) * len, y + Math.sin(a + half) * len);
+    ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+  }
+  // The volcano far below the Ash Clouds: a dark cone with a glowing crater and a smoke plume.
+  function volcano(ctx, dist, t) {
+    const x = wrap(260 - dist * 0.09, 640, 120), y = 150;
+    ctx.beginPath(); ctx.moveTo(x - 90, H()); ctx.lineTo(x - 14, y); ctx.lineTo(x + 14, y); ctx.lineTo(x + 90, H()); ctx.closePath();
+    const g = ctx.createLinearGradient(0, y, 0, H()); g.addColorStop(0, '#5a3a32'); g.addColorStop(1, '#2a1a18');
+    ctx.fillStyle = g; ctx.fill();
+    glow(ctx, x, y + 1, 6 + Math.sin(t * 3) * 0.8, '#ffd27a', 'rgba(255,90,30,.5)');
+    for (let i = 0; i < 5; i++) {
+      const k = ((t * 0.25 + i / 5) % 1), r = 6 + k * 18;
+      ellipse(ctx, x + k * 30 + Math.sin(t + i) * 3, y - 8 - k * 70, r, r * 0.8, `rgba(70,56,54,${0.5 * (1 - k)})`, 0);
+    }
+  }
+  // The Sky Citadel on the horizon: the painted fort, small and dark, its windows lit.
+  function farCitadel(ctx, dist, t) {
+    const im = art.tinted('boss-fort', '#4a3452');
+    if (!im) return;
+    for (let i = 0; i < 2; i++) {
+      const x = wrap(i * 260 + 80 - dist * 0.04, 520, 90), y = 52 + i * 10, w = 70 - i * 14;
+      ctx.globalAlpha = 0.85; ctx.drawImage(im, x, y, w, w * 93.1 / 122); ctx.globalAlpha = 1;
+      if (Math.sin(t * 1.3 + i) > 0) glow(ctx, x + w * 0.45, y + w * 0.35, 0.8, '#ffe9a0', 'rgba(255,200,90,.4)');
+    }
+  }
+
+  // Near clouds drift in front of everything; each stage's weather is drawn with them.
   art.drawNearClouds = (ctx, dist, area = 'reef', t = 0) => {
     if (painted(area)) {
       for (let i = 0; i < 2; i++) cumulus(ctx, i + 1, wrap(i * 300 + 120 - dist * 0.9, 700, 90), 160 + i * 40, 150, 0.8, area);
-      if (area === 'storm') {                             // rain, slanting, in front of everything
-        ctx.strokeStyle = 'rgba(200,214,232,.35)'; ctx.lineWidth = 0.6; ctx.beginPath();
-        for (let i = 0; i < 70; i++) {
+      if (area === 'storm' || area === 'thunder') {        // rain, slanting, in front of everything (heavier in the Thunderhead)
+        const n = area === 'thunder' ? 110 : 70, slant = area === 'thunder' ? 6 : 3;
+        ctx.strokeStyle = area === 'thunder' ? 'rgba(190,204,226,.4)' : 'rgba(200,214,232,.35)'; ctx.lineWidth = 0.6; ctx.beginPath();
+        for (let i = 0; i < n; i++) {
           const rx = wrap(i * 53 - dist * 1.4 - t * 20 * (1 + (i % 3) * 0.2), W() + 40, 20), ry = wrap(i * 37 + t * 250, H() + 20, 10);
-          ctx.moveTo(rx, ry); ctx.lineTo(rx - 3, ry + 9);
+          ctx.moveTo(rx, ry); ctx.lineTo(rx - slant, ry + 9);
         }
         ctx.stroke();
+      } else if (area === 'frost') {                       // snow, drifting
+        ctx.fillStyle = 'rgba(255,255,255,.8)';
+        for (let i = 0; i < 60; i++) {
+          const x = wrap(i * 47 - dist * 0.8 - t * 18 + Math.sin(t + i) * 6, W() + 20, 10), y = wrap(i * 29 + t * (30 + (i % 4) * 8), H() + 10, 5), r = 0.6 + (i % 3) * 0.35;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+        }
+      } else if (area === 'ash') {                         // ash falling, embers rising
+        ctx.fillStyle = 'rgba(90,80,80,.55)';
+        for (let i = 0; i < 50; i++) { const x = wrap(i * 61 - dist * 0.7 - t * 10, W() + 20, 10), y = wrap(i * 23 + t * 22, H() + 10, 5); ctx.fillRect(x, y, 1.2, 1.2); }
+        for (let i = 0; i < 18; i++) {
+          const x = wrap(i * 71 - dist * 0.5 + Math.sin(t * 2 + i) * 5, W() + 20, 10), y = wrap(H() - (i * 37 + t * 40), H() + 10, 5);
+          glow(ctx, x, y, 0.6, '#ffd27a', 'rgba(255,110,40,.5)');
+        }
+      } else if (area === 'citadel') {                     // gun smoke drifting past
+        for (let i = 0; i < 4; i++) {
+          const x = wrap(i * 140 - dist * 1.1, W() + 120, 60), y = 30 + (i % 3) * 60;
+          ellipse(ctx, x, y, 30, 9, 'rgba(90,76,90,.16)', 0);
+        }
       }
       return;
     }
@@ -199,6 +311,12 @@
 
   art.drawEnemy = (ctx, e, x, y, t) => {
     const flash = e.flash > 0;
+    if (e.type === 'picket') return art.drawPicket(ctx, e, x, y, t, flash);
+    if (e.type === 'icemine') return art.drawIceMine(ctx, x + e.w / 2, y + 16, t, flash);
+    if (e.type === 'bomber') return art.drawBomber(ctx, e, x, y, t, flash);
+    if (e.type === 'rod') return art.drawRod(ctx, e, x, y, t, flash);
+    if (e.type === 'ceilflak') return art.drawCeilFlak(ctx, x, y, t, flash);
+    if (e.type === 'payship') return art.drawPayship(ctx, e, x, y, t, flash);
     if (e.type === 'zeppelin') return art.drawZeppelin(ctx, x + e.w / 2, y + 12, t, { flash, fire: e.firing || 0 });
     if (e.type === 'mine') return art.drawMine(ctx, x + e.w / 2, y + 16, t);
     if (e.type === 'flak') return art.drawFlak(ctx, x, y, t, flash);
@@ -263,6 +381,74 @@
     if (Math.floor(t * 6) % 2) glow(ctx, x - MINE.ax + 0.87 * MINE.w, by - MINE.ay + 0.9 * MINE.h, 1, '#fff2a0', 'rgba(255,150,40,.6)');   // the fuse fizzing
   };
 
+  // ---- the newer skies' navy: the painted sprites re-coloured, re-sized and fitted out in code ----
+  // A sprite tinted (multiply), or its white flash, drawn with its top-left at x0, y0, scaled by k.
+  const paint = (ctx, k, d, x0, y0, scale, tint, flash) => {
+    const im = flash ? art.flashed(k) : tint ? art.tinted(k, tint) : art.sprite(k);
+    if (im) ctx.drawImage(im, x0, y0, d.w * scale, d.h * scale);
+    return !!im;
+  };
+  // The Midnight Picket's searchlight zeppelin: a darkened, smaller navy zeppelin with a lamp.
+  art.drawPicket = (ctx, e, x, y, t, flash) => {
+    if (e.beam !== undefined) {
+      const [lx, ly] = CD.lampOf({ ...e, x, y });
+      beam(ctx, lx, ly, e.beam, CD.BEAM_LEN, CD.BEAM_HALF, e.lit ? 'rgba(255,246,200,.42)' : 'rgba(255,246,200,.24)');
+    }
+    paint(ctx, 'navy-zeppelin', ZEP, x - 1, y - 2, 0.68, '#6a76a2', flash);
+    const [lx, ly] = CD.lampOf({ ...e, x, y });
+    ellipse(ctx, lx, ly - 1, 2.6, 2, '#3a3a44', 0.5);
+    glow(ctx, lx, ly, 1.8, '#fff8d0', e.lit ? 'rgba(255,240,150,.8)' : 'rgba(255,240,150,.5)');
+  };
+  // An ice mine: the balloon mine frosted over, icicles hanging off it.
+  art.drawIceMine = (ctx, x, y, t, flash) => {
+    const by = y + Math.sin(t * 2 + x) * 2;
+    paint(ctx, 'navy-mine', MINE, x - MINE.ax, by - MINE.ay, 1, '#bfe4ff', flash);
+    ctx.fillStyle = 'rgba(235,248,255,.9)';
+    for (const [dx, len] of [[-4, 5], [-1, 7], [2, 4], [5, 6]]) {
+      ctx.beginPath(); ctx.moveTo(x + dx - 1.2, by + 14); ctx.lineTo(x + dx + 1.2, by + 14); ctx.lineTo(x + dx, by + 14 + len); ctx.closePath(); ctx.fill(); outline(ctx, 0.4);
+    }
+    if (Math.sin(t * 3 + x) > 0.8) glow(ctx, x - 3, by - 6, 0.9, '#ffffff', 'rgba(200,235,255,.7)');
+  };
+  // A fire-gyro bomber: the gyrocopter in red, a firebomb glowing under it.
+  art.drawBomber = (ctx, e, x, y, t, flash) => {
+    const cx = x + e.w / 2, cy = y + e.h / 2;
+    paint(ctx, 'navy-gyro', GYRO, cx - GYRO.ax, cy - GYRO.ay, 1, '#ff9a72', flash);
+    rotorBlur(ctx, cx + 2.1, cy - 10.3, 13, t);
+    brassBall(ctx, cx + 1, cy + 8, 2.4, 2.4);
+    glow(ctx, cx + 1, cy + 10.5, 1 + Math.abs(Math.sin(t * 9)) * 0.6, '#ffe08a', 'rgba(255,90,30,.6)');
+  };
+  // A conductor balloon: a steel-blue mine balloon with a copper rod below; the lead one draws the
+  // arc to its mate.
+  art.drawRod = (ctx, e, x, y, t, flash) => {
+    const cx = x + e.w / 2, by = y + 16;
+    paint(ctx, 'navy-mine', MINE, cx - MINE.ax, by - MINE.ay, 1, '#7088c0', flash);
+    ctx.strokeStyle = '#b8742c'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(cx, y + e.h - 6); ctx.lineTo(cx, y + e.h); ctx.stroke();
+    glow(ctx, cx, y + e.h, 1, '#e8f6ff', 'rgba(120,200,255,.5)');
+    if (e.lead && e.arc && e.mate) {
+      const m = e.mate, mx = m.x + m.w / 2 + (x - e.x), my = m.y + m.h + (y - e.y);   // the mate, shifted like this one
+      if (e.arc === 'warn' && Math.floor(t * 14) % 2) return;
+      const pts = [[cx, y + e.h]], n = 8, seed = Math.floor(t * 24);
+      for (let i = 1; i < n; i++) pts.push([cx + (mx - cx) * i / n + (((i * 31 + seed * 17) % 9) - 4) * (e.arc === 'on' ? 1 : 0.4), y + e.h + (my - y - e.h) * i / n]);
+      pts.push([mx, my]);
+      const line = (wd, col) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.stroke(); };
+      ctx.lineJoin = 'round';
+      if (e.arc === 'on') { line(6, 'rgba(120,190,255,.25)'); line(2.6, 'rgba(190,230,255,.85)'); line(1, '#ffffff'); }
+      else line(0.8, 'rgba(190,230,255,.6)');
+    }
+  };
+  // A flak tower hanging upside down from the Sky Citadel's underside.
+  art.drawCeilFlak = (ctx, x, y, t, flash) => {
+    ctx.save(); ctx.translate(0, 2 * y + 18); ctx.scale(1, -1);
+    art.drawFlak(ctx, x, y, t, flash);
+    ctx.restore();
+  };
+  // A pay-ship: a small gilded navy zeppelin, glinting with gold.
+  art.drawPayship = (ctx, e, x, y, t, flash) => {
+    paint(ctx, 'navy-zeppelin', ZEP, x - 2, y - 3, 0.6, '#ffd77a', flash);
+    for (let i = 0; i < 3; i++) if ((t * 1.7 + i * 0.37) % 1 < 0.15) glow(ctx, x + 8 + i * 16, y + 6 + (i % 2) * 6, 1, '#fffbe8', 'rgba(255,230,140,.7)');
+    if (e.fled) art.text(ctx, '$', x + 25, y - 6, { size: 7, color: '#ffd34e', align: 'center' });
+  };
+
   // A cloud bank in the middle band: big enough to hide the Cloud Dancer in.
   // `area` is an area id (or true for the storm), for the cloud's tint.
   art.drawCloudBank = (ctx, x, y, w, t, alpha = 1, area = 'reef', ink = false, h = 44) => {
@@ -306,6 +492,19 @@
 
   // Lightning: a flickering warning line, then a jagged bolt top to bottom.
   art.drawBolt = (ctx, b, t) => {
+    if (b.fire) {                                        // the Furnace's flame column: glows from below, then roars up
+      if (b.warn > 0) {
+        const g = ctx.createLinearGradient(0, H(), 0, H() - 60); g.addColorStop(0, 'rgba(255,120,40,.5)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+        if (Math.floor(t * 16) % 2) return;
+        ctx.fillStyle = g; ctx.fillRect(b.x - 8, H() - 60, 16, 60); ctx.fillStyle = 'rgba(255,200,90,.8)'; ctx.fillRect(b.x - 0.5, 0, 1, H());
+        return;
+      }
+      const g = ctx.createLinearGradient(b.x - 10, 0, b.x + 10, 0);
+      g.addColorStop(0, 'rgba(255,80,20,0)'); g.addColorStop(0.3, 'rgba(255,120,30,.8)'); g.addColorStop(0.5, 'rgba(255,240,170,.95)'); g.addColorStop(0.7, 'rgba(255,120,30,.8)'); g.addColorStop(1, 'rgba(255,80,20,0)');
+      ctx.fillStyle = g; ctx.fillRect(b.x - 10, 0, 20, H());
+      for (let y = 0; y < H(); y += 14) glow(ctx, b.x + Math.sin(y + t * 30) * 4, H() - ((y + t * 300) % H()), 2, '#fff2c0', 'rgba(255,120,30,.4)');
+      return;
+    }
     if (b.warn > 0) {
       if (Math.floor(t * 16) % 2) return;
       ctx.fillStyle = 'rgba(255,240,140,.35)'; ctx.fillRect(b.x - 8, 0, 16, H());
@@ -346,6 +545,29 @@
       ctx.beginPath(); ctx.moveTo(3, -1.6); ctx.lineTo(6.5, 0); ctx.lineTo(3, 1.6); ctx.closePath(); ctx.fillStyle = '#c8281e'; ctx.fill(); outline(ctx, 0.4);
       ctx.beginPath(); ctx.moveTo(-6, -1.6); ctx.lineTo(-8, -3.4); ctx.lineTo(-4, -1.6); ctx.moveTo(-6, 1.6); ctx.lineTo(-8, 3.4); ctx.lineTo(-4, 1.6); ctx.fillStyle = '#8a2a20'; ctx.fill();
       ctx.restore(); return;
+    }
+    if (b.icicle || b.shard) {                          // falling ice: a pale blue spike along its flight
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(Math.atan2(b.vy || 0, b.vx || 0) - Math.PI / 2);
+      const L = b.icicle ? 8 : 3.5, R = b.icicle ? 2.4 : 1.4, g = ctx.createLinearGradient(-R, 0, R, 0);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#8ec4ee');
+      ctx.beginPath(); ctx.moveTo(-R, -L * 0.4); ctx.lineTo(R, -L * 0.4); ctx.lineTo(0, L * 0.6); ctx.closePath(); ctx.fillStyle = g; ctx.fill(); outline(ctx, 0.5);
+      ctx.restore(); return;
+    }
+    if (b.lava || b.bomb) {                             // a lava bomb (crusted, glowing) or a firebomb
+      const r = b.r;
+      if (b.lava) { ellipse(ctx, b.x - (b.vx || 0) * 0.02, b.y - (b.vy || 0) * 0.03, r * 0.9, r * 0.9, 'rgba(70,60,60,.35)', 0); }
+      glow(ctx, b.x, b.y, r * 0.8, '#ffe08a', 'rgba(255,90,30,.5)');
+      const g = ctx.createRadialGradient(b.x - r * 0.3, b.y - r * 0.3, 0, b.x, b.y, r);
+      g.addColorStop(0, b.lava ? '#ffb43c' : '#5a5a66'); g.addColorStop(1, b.lava ? '#5a1a0a' : '#141418');
+      ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.fillStyle = g; ctx.fill(); outline(ctx, 0.5);
+      return;
+    }
+    if (b.flare) { glow(ctx, b.x, b.y, 2.6 + Math.random() * 0.6, '#fffbe0', 'rgba(255,240,170,.6)'); return; }
+    if (b.frost) {                                       // a frost orb: pale, with a snowflake cross
+      glow(ctx, b.x, b.y, b.r, '#ffffff', 'rgba(150,210,255,.6)');
+      ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 0.6; ctx.beginPath();
+      for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3; ctx.moveTo(b.x - Math.cos(a) * 3, b.y - Math.sin(a) * 3); ctx.lineTo(b.x + Math.cos(a) * 3, b.y + Math.sin(a) * 3); }
+      ctx.stroke(); return;
     }
     const r = b.r + 0.4;
     if (b.friendly) {                                   // an iron cannonball, lit from the upper left
@@ -492,6 +714,52 @@
       ctx.lineCap = 'butt';
       put(ctx, k, d, cx, cy - 4, f);
       for (const [ex, ey, r] of [[-9.9, 1.5, 3.4], [4.9, 2.6, 2.6]]) glow(ctx, cx + ex, cy - 4 + ey, r, b.tell ? '#ff6a5a' : '#bff4ff', b.tell ? 'rgba(255,40,40,.6)' : 'rgba(120,220,255,.35)');
+    } else if (b.id === 'lamplighter') {
+      const L = CD.BOSSES.lamplighter.lamps;
+      if (b.beams) b.beams.forEach((a, i) => beam(ctx, x + L[i][0], y + L[i][1], a, CD.BEAM_LEN + 40, CD.BEAM_HALF, 'rgba(255,246,200,.38)'));
+      paint(ctx, 'navy-zeppelin', ZEP, x - 6, y - 8, 1.45, '#56618a', f);   // the navy zeppelin, flagship-sized and blacked out
+      for (const [lx, ly] of L) { ellipse(ctx, x + lx, y + ly - 1, 3.4, 2.6, '#2e2e38', 0.6); glow(ctx, x + lx, y + ly, 2.2, b.tell ? '#fff2a0' : '#fff8d8', b.beams ? 'rgba(255,240,150,.8)' : 'rgba(255,240,150,.45)'); }
+    } else if (b.id === 'icebreaker') {
+      // the ice ram on the bow, then the hull frosted over, icicles along the keel
+      ctx.beginPath(); ctx.moveTo(x + 4, y + 22); ctx.lineTo(x - 18, y + 33); ctx.lineTo(x + 4, y + 44); ctx.closePath();
+      const rg = ctx.createLinearGradient(0, y + 22, 0, y + 44); rg.addColorStop(0, '#ffffff'); rg.addColorStop(1, '#7ab4e0');
+      ctx.fillStyle = f ? '#fff' : rg; ctx.fill(); outline(ctx, 0.8);
+      paint(ctx, 'boss-thunderer', BOSS.thunderer, x - 10, y - 16, 1, '#c4e2ff', f);
+      ctx.fillStyle = 'rgba(235,248,255,.95)';
+      for (let i = 0; i < 9; i++) { const ix = x + 18 + i * 11, len = 4 + ((i * 7) % 5); ctx.beginPath(); ctx.moveTo(ix - 1.6, y + 48); ctx.lineTo(ix + 1.6, y + 48); ctx.lineTo(ix, y + 48 + len); ctx.closePath(); ctx.fill(); outline(ctx, 0.4); }
+      glow(ctx, x + 2, y + 33, 2, b.tell ? '#ffffff' : '#d8f0ff', 'rgba(150,210,255,.5)');
+    } else if (b.id === 'furnace') {
+      const cx = x + b.w / 2, cy = y + b.h / 2;
+      art.drawCloudBank(ctx, x - 10, cy + 34, b.w + 20, t, 0.95, 'ash');
+      paint(ctx, 'boss-tempest', BOSS.tempest, cx - BOSS.tempest.ax, cy - BOSS.tempest.ay, 1, '#ff9a66', f);
+      const oy = cy - 36;
+      glow(ctx, cx, oy, 5.5 + Math.sin(t * 14) * 0.9, b.tell ? '#ffffff' : '#ffe08a', b.tell ? 'rgba(255,200,90,.7)' : 'rgba(255,90,30,.55)');
+      for (let i = 0; i < 4; i++) {                       // flames licking up from the forge
+        const k = (t * 2 + i / 4) % 1;
+        glow(ctx, cx + Math.sin(t * 5 + i * 1.7) * 5, oy - 4 - k * 14, 1.6 * (1 - k) + 0.4, '#ffd27a', `rgba(255,90,30,${0.5 * (1 - k)})`);
+      }
+    } else if (b.id === 'stormjaw') {
+      const cx = x + b.w / 2, cy = y + b.h / 2, k = 3.4;
+      paint(ctx, 'navy-pike', PIKE, cx - PIKE.ax * k, cy - PIKE.ay * k, k, '#6e7896', f);
+      glow(ctx, cx - 10.3 * k, cy - 0.5 * k, 3, b.tell ? '#ff6a5a' : '#bfefff', b.tell ? 'rgba(255,40,40,.6)' : 'rgba(120,200,255,.5)');
+      ctx.lineJoin = 'round';
+      for (let i = 0; i < 3; i++) {                       // lightning crawling over its armour
+        const sx = cx - 30 + i * 30 + ((Math.floor(t * 12) * 13 + i * 7) % 11), sy = cy - 12 + (i % 2) * 18;
+        ctx.beginPath(); ctx.moveTo(sx, sy);
+        for (let n = 1; n <= 3; n++) ctx.lineTo(sx + n * 4, sy + (((n * 7 + Math.floor(t * 20)) % 5) - 2) * 1.5);
+        ctx.strokeStyle = 'rgba(200,235,255,.8)'; ctx.lineWidth = 0.8; ctx.stroke();
+      }
+    } else if (b.id === 'citadel') {
+      paint(ctx, 'boss-fort', BOSS.fort, x - 8, y - 6, 1.25, '#cdb4e4', f);
+      for (const [tx, ty] of CD.BOSSES.citadel.turrets) {
+        ctx.save(); ctx.translate(x + tx, y + ty + 2); ctx.rotate(Math.PI + 0.3 + Math.sin(t + tx) * 0.2); barrel(ctx, 12, 1.7); ctx.restore();
+      }
+      for (const [px, h] of [[40, 22], [96, 26]]) {       // the Admiralty's pennants
+        ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + px, y + 2); ctx.lineTo(x + px, y + 2 - h); ctx.stroke();
+        const wv = Math.sin(t * 6 + px) * 2;
+        ctx.beginPath(); ctx.moveTo(x + px, y + 2 - h); ctx.quadraticCurveTo(x + px - 7, y + 4 - h + wv, x + px - 14, y + 5 - h); ctx.lineTo(x + px, y + 8 - h); ctx.closePath();
+        ctx.fillStyle = '#c8281e'; ctx.fill(); outline(ctx, 0.5);
+      }
     }
   }
 
@@ -505,6 +773,17 @@
 
   // Tentacle rows from the Kraken: a warning band, then a brass tentacle sweeping across.
   art.drawHazard = (ctx, h, t) => {
+    if (h.kind === 'jaw') {                              // Stormjaw's lunge: a crackling blue lane
+      if (h.warn > 0) {
+        if (Math.floor(t * 14) % 2) return;
+        ctx.fillStyle = 'rgba(140,200,255,.2)'; ctx.fillRect(0, h.y, W(), h.h);
+        ctx.fillStyle = 'rgba(190,230,255,.85)'; ctx.fillRect(0, h.y, W(), 1); ctx.fillRect(0, h.y + h.h - 1, W(), 1);
+        return;
+      }
+      ctx.strokeStyle = 'rgba(200,235,255,.7)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = 0, i = 0; x < W(); x += 8, i++) { const y = h.y + h.h / 2 + (((i * 13 + Math.floor(t * 30)) % 9) - 4) * 1.4; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke(); return;
+    }
     if (h.warn > 0) {
       if (Math.floor(t * 14) % 2) return;
       ctx.fillStyle = 'rgba(255,90,90,.22)'; ctx.fillRect(0, h.y, W(), h.h);
@@ -514,6 +793,60 @@
     const k = 1 - h.active / 0.5, x0 = W() + 20 - k * (W() + 60), cy = h.y + h.h / 2;
     // a sweeping brass tentacle, segment by segment
     for (let x = x0, i = 0; x < W() + 30; x += 6, i++) brassBall(ctx, x, cy + Math.sin(x * 0.08 + t * 20) * 4, Math.min(7.5, 3.5 + i * 0.35));
+  };
+
+  // Where an icicle will drop (a shaking cluster at the top) or a lava bomb will burst up (a
+  // bubbling glow at the bottom), with a faint line down its path.
+  art.drawFall = (ctx, f, t) => {
+    const blink = Math.floor(t * 12) % 2;
+    if (f.kind === 'ice') {
+      if (blink) { ctx.fillStyle = 'rgba(200,235,255,.22)'; ctx.fillRect(f.x - 4, 0, 8, H()); }
+      const sh = Math.sin(t * 50) * 0.8;
+      ctx.fillStyle = '#e8f6ff';
+      for (const dx of [-3, 0, 3]) { ctx.beginPath(); ctx.moveTo(f.x + dx - 1.6 + sh, 0); ctx.lineTo(f.x + dx + 1.6 + sh, 0); ctx.lineTo(f.x + dx + sh, 6 + (dx === 0 ? 3 : 0)); ctx.closePath(); ctx.fill(); outline(ctx, 0.4); }
+    } else {
+      if (blink) { ctx.fillStyle = 'rgba(255,140,60,.18)'; ctx.fillRect(f.x - 5, 0, 10, H()); }
+      glow(ctx, f.x, H() - 2, 4 + Math.sin(t * 20) * 1, '#ffe08a', 'rgba(255,90,30,.6)');
+    }
+  };
+  // A flak curtain: warning puffs down its line (the gap left clear and bracketed), then bursts.
+  art.drawCurtain = (ctx, c, t) => {
+    if (c.warn > 0) {
+      for (let y = 6; y < H(); y += 12) {
+        if (CD.inCurtainGap(c, y)) continue;
+        if (Math.floor(t * 10 + y * 0.1) % 2) ellipse(ctx, c.x, y, 3, 3, 'rgba(255,170,90,.55)', 0.6);
+      }
+      ctx.strokeStyle = 'rgba(255,211,78,.8)'; ctx.lineWidth = 1;
+      for (const [y, d] of [[c.gapY, 1], [c.gapY + c.gapH, -1]]) { ctx.beginPath(); ctx.moveTo(c.x - 6, y + d * 3); ctx.lineTo(c.x - 6, y); ctx.lineTo(c.x + 6, y); ctx.lineTo(c.x + 6, y + d * 3); ctx.stroke(); }
+      return;
+    }
+    const k = 1 - c.live / 0.7;
+    for (let y = 4, i = 0; y < H(); y += 10, i++) {
+      if (CD.inCurtainGap(c, y)) continue;
+      const r = 4 + k * 5 + (i % 3);
+      ellipse(ctx, c.x + Math.sin(i * 2.3) * 3, y, r, r * 0.85, `rgba(60,50,60,${0.75 * (1 - k)})`, 0);
+      if (k < 0.4 && (i + Math.floor(t * 20)) % 3 === 0) glow(ctx, c.x + Math.sin(i * 2.3) * 3, y, 2, '#ffd34e', 'rgba(255,140,40,.5)');
+    }
+  };
+  // Wind shear: streaks show which way a gust will shove; then they rush that way.
+  art.drawGust = (ctx, g, t) => {
+    const on = g.warn <= 0, n = on ? 24 : 10;
+    ctx.strokeStyle = on ? 'rgba(230,240,255,.45)' : 'rgba(230,240,255,.3)'; ctx.lineWidth = 0.8; ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = hash(i) * W(), y = wrap(hash(i + 40) * H() + g.dir * t * (on ? 220 : 40), H(), 0), len = on ? 14 : 7;
+      ctx.moveTo(x, y); ctx.lineTo(x + 2, y + g.dir * len);
+    }
+    ctx.stroke();
+    if (!on && Math.floor(t * 6) % 2) art.text(ctx, g.dir < 0 ? '\u2191 GUST \u2191' : '\u2193 GUST \u2193', W() / 2, g.dir < 0 ? 44 : H() - 24, { size: 7, color: '#e8f4ff', align: 'center' });
+  };
+  // The stage picker: < STAGE 5: THE MIDNIGHT PICKET >, and how to change it.
+  art.drawPicker = (ctx, st, y, t, hint) => {
+    const a = CD.AREAS[st.start];
+    art.text(ctx, `SET SAIL FROM  STAGE ${st.start + 1}: ${a.name}`, W() / 2, y - 1, { size: 7, color: '#ffffff', align: 'center' });
+    const pulse = 1 + Math.sin(t * 5) * 0.6;
+    art.text(ctx, '<', 36 - pulse, y - 1, { size: 9, color: '#ffd34e', align: 'center' });
+    art.text(ctx, '>', W() - 36 + pulse, y - 1, { size: 9, color: '#ffd34e', align: 'center' });
+    art.text(ctx, `${hint}   ·   ${st.reached + 1} OF ${CD.AREAS.length} STAGES REACHED`, W() / 2, y + 7.5, { size: 5, color: '#cfe8ff', align: 'center' });
   };
 
   // The boss's name and health along the bottom.
@@ -572,7 +905,7 @@
     const L = CD.MLAYOUT;
     ctx.fillStyle = 'rgba(16,24,48,.6)'; ctx.fillRect(0, 0, W(), H());
     panel(ctx, 40, 14, W() - 80, H() - 28);
-    art.text(ctx, 'THE SKY MARKET', W() / 2, 28, { size: 13, color: '#ffd34e', align: 'center' });
+    art.text(ctx, m.stake ? 'THE QUARTERMASTER\'S STAKE' : 'THE SKY MARKET', W() / 2, 28, { size: 13, color: '#ffd34e', align: 'center' });
     art.text(ctx, `HEARTS ${s.hearts}/${s.maxHearts}   LIVES ${s.lives}`, 54, 42, { size: 7, color: '#ffb0a8' });
     art.text(ctx, `${w.gold} GOLD`, W() - 54, 42, { size: 7, color: '#ffd34e', align: 'right' });
     m.rows().forEach((it, i) => {
@@ -584,7 +917,8 @@
       if (it.id !== 'leave') { const c = m.price(it.id); art.text(ctx, c + 'G', x1, y, { size: 6.5, color: w.gold >= c ? '#7cfc7c' : '#ff8a7a', align: 'right' }); }
     });
     const cur = m.current();
-    art.text(ctx, m.msgT > 0 ? m.msg : cur.note, W() / 2, touch ? 184 : 188, { size: 7, color: m.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
+    const note = m.msgT > 0 ? m.msg : cur.id === 'leave' && m.stake ? 'SET SAIL: WHAT ISN\'T SPENT STAYS IN PORT' : cur.note;
+    art.text(ctx, note, W() / 2, touch ? 184 : 188, { size: 7, color: m.msgT > 0 ? '#ffd34e' : '#cfe8ff', align: 'center' });
     if (touch) { art.button(ctx, L.buy, 'BUY'); art.button(ctx, L.sail, 'CAST OFF'); }
     else art.text(ctx, padMode() ? 'D-PAD: CHOOSE   A / OK: BUY   B / BACK: CAST OFF' : 'ARROWS: CHOOSE   SPACE: BUY   ENTER: CAST OFF', W() / 2, 200, { size: 6.5, color: '#d9c4a0', align: 'center' });
   };
@@ -616,6 +950,11 @@
     ctx.fillStyle = s.steam >= CD.DASH_COST ? '#e8f4ff' : '#8aa0b4'; ctx.fillRect(gx, gy, gw * s.steam / (s.steamMax || CD.STEAM_MAX), 4);
     ctx.fillStyle = '#ffd34e'; ctx.fillRect(gx + gw * CD.DASH_COST / (s.steamMax || CD.STEAM_MAX), gy - 1, 1, 6);
     art.text(ctx, 'STEAM', gx + gw + 4, 20, { size: 6, color: '#cfe8ff' });
+    if (s.ice > 0.02) {                                  // the Frozen Heights: how iced the rigging is
+      ctx.fillStyle = INK; ctx.fillRect(gx - 1, gy + 6, gw + 2, 4);
+      ctx.fillStyle = '#bfe4ff'; ctx.fillRect(gx, gy + 7, gw * Math.min(1, s.ice), 2);
+      art.text(ctx, s.ice > 0.6 ? 'ICED! FULL STEAM' : 'ICE', gx + gw + 4, gy + 9.5, { size: 5, color: s.ice > 0.6 ? '#ffffff' : '#bfe4ff' });
+    }
     const gun = CD.WEAPONS ? CD.WEAPONS[s.weapon || 'cannon'] : null;
     if (gun) art.text(ctx, s.weaponT > 0 && s.weapon !== 'cannon' ? (s.gunRack ? gun.name : `${gun.name} ${Math.ceil(s.weaponT)}`) : gun.name, L, 31, { size: 6.5, color: s.weaponT > 0 && s.weapon !== 'cannon' ? '#ffd34e' : '#cfe8ff' });
     art.text(ctx, String(w.score).padStart(6, '0'), R, 9, { size: 9, align: 'right' });

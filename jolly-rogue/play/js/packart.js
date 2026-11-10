@@ -149,6 +149,7 @@
   const CAST = {
     d: { anim: 'crabby', states: CREW },                     // deckhand
     m: { anim: 'fierceTooth', states: CREW },                // marine
+    g: { anim: 'fierceTooth', states: CREW },                // drowned sailor (drawn faded, js/art.js)
     b: { anim: 'pinkStar', states: CREW },                   // grenadier
     f: { anim: 'bald', scale: 0.5, left: true, states: ['idle', 'run', 'attack', 'hit', 'deadHit', 'deadGround'] },   // officer
     s: { anim: 'seashell', left: true, states: ['idle', 'fire', 'hit', 'destroyed'] },   // sharpshooter

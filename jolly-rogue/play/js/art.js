@@ -13,7 +13,9 @@
     ctx.fillStyle = '#2e2a3a'; ctx.fillRect(0, 0, W(), JR.VIEW_H);   // until the atlas is in
     JR.artWorld.drawBackdrop(ctx, camX, t, biome, voyage);
   };
-  art.drawTiles = (ctx, lv, camX) => JR.artWorld.drawTiles(ctx, lv, camX);
+  art.drawTiles = (ctx, lv, camX, t) => JR.artWorld.drawTiles(ctx, lv, camX, t);
+  art.drawWeather = (ctx, camX, t, biome, calm) => JR.areaArt && JR.areaArt.weather(ctx, camX, t, biome, calm);
+  art.drawHazard = (ctx, h, t) => JR.areaArt && JR.areaArt.drawHazard(ctx, h, t);
 
   // ---------- the cast (Pixel Frog's packs via js/atlas.js; guns and pets from js/packart.js) ----------
 
@@ -72,8 +74,9 @@
 
   art.drawBoss = (ctx, b, x, y, t) => {
     if (!A.ready) return;
-    const art_ = JR.BOSSES[b.nation].art;
-    let pose = 'idle', at = b.t, opts = { flip: b.facing > 0, white: b.flash > 0 };   // Pirate Bomb art faces left
+    const def = JR.BOSSES[b.nation], art_ = def.art;
+    let pose = 'idle', at = b.t, opts = { flip: b.facing > 0, white: b.flash > 0, crew: def.crew || null };   // Pirate Bomb art faces left
+    if (def.ghost) opts.alpha = Math.max(0.12, b.fade == null ? 1 : b.fade) * 0.85;
     if (!b.onGround) pose = b.vy < 0 ? 'jump' : 'fall';
     else if (b.tell) pose = 'attack', opts.i = 0;
     else if (b.fired > 0.1 || b.state === 'act') pose = 'attack';
@@ -85,6 +88,7 @@
   art.drawEnemy = (ctx, e, x, y, t) => {
     if (!A.ready) return;
     if (e.type === 'B') return art.drawBoss(ctx, e, x, y, t);
+    if (JR.areaArt && JR.areaArt.drawEnemy(ctx, e, x, y, t)) return;   // bats and powder kegs
     const c = PA().CAST[e.type];
     const opts = { flip: c.left ? e.facing > 0 : e.facing < 0, white: e.flash > 0, crew: e.prop || e.type === 'n' ? null : e.nation, scale: c.scale };
     let pose = 'idle', at = e.t;
@@ -94,6 +98,7 @@
     } else if (e.tell) pose = e.type === 'f' ? 'idle' : 'anticipation';
     else if (e.fired > 0) pose = 'attack', at = 0.25 - e.fired;
     else if (Math.abs(e.vx) > 1) pose = 'run';
+    if (e.type === 'g') opts.alpha = 0.15 + 0.7 * (e.fade == null ? 1 : e.fade);   // drowned sailors fade in and out
     A.draw(ctx, `${c.anim}.${pose}`, at, x, y, opts);
     if (e.tell) tell(ctx, x, y - e.h - 16, t);
   };
@@ -101,8 +106,9 @@
   // Knocked down: the dead-hit tumble in the air, then flat on the ground, blinking out.
   art.drawCorpse = (ctx, k, x, y) => {
     if (!A.ready || blink(k.age, k.boss ? 1.6 : 0.55)) return;
+    if (k.type === 'v') { const img = JR.areaArt.sprite.bat(0); px.draw(ctx, img, x, y - 4, img.width / 2, img.height / 2, false, Math.PI); return; }
     const c = k.boss ? { anim: JR.BOSSES[k.nation].art } : PA().CAST[k.type] || PA().CAST.d;
-    const opts = { flip: k.boss || c.left ? k.facing > 0 : k.facing < 0, white: k.age < 0.07, crew: k.boss ? null : k.nation, scale: c.scale, loop: false };
+    const opts = { flip: k.boss || c.left ? k.facing > 0 : k.facing < 0, white: k.age < 0.07, crew: k.boss ? JR.BOSSES[k.nation].crew || null : k.nation, scale: c.scale, loop: false };
     const name = k.type === 's' ? 'seashell.destroyed' : `${c.anim}.${k.onGround ? 'deadGround' : 'deadHit'}`;
     A.draw(ctx, name, k.age, x, y, opts);
   };
@@ -115,7 +121,9 @@
 
   art.drawShot = (ctx, s, x, y, t) => {
     if (!A.ready) return;
-    if (s.roll || s.boom) centered(ctx, 'bomb.on', t, x, y + 6, { scale: 0.5 });
+    if (JR.areaArt && JR.areaArt.drawShot(ctx, s, x, y, t)) return;   // lava rocks and boulders
+    if (s.shell) centered(ctx, 'cannonball', t, x, y, { scale: 0.8 });
+    else if (s.roll || s.boom) centered(ctx, 'bomb.on', t, x, y + 6, { scale: 0.5 });
     else if (s.wave) px.draw(ctx, JR.small.wave(Math.floor(t * 10) % 2), x, y + 4, 7, 10, s.vx < 0);
     else if (s.dagger) px.draw(ctx, JR.small.dagger(), x, y, 5, 2, s.vx < 0);
     else if (s.ball) centered(ctx, 'cannonball', t, x, y, { scale: 0.7 });
@@ -133,7 +141,8 @@
   };
   art.drawFx = (ctx, f, t) => {
     if (f.delay > 0) return;
-    if (f.type === 'flash') { const img = JR.packart.flash(f.t > 0.03 ? 0 : 1); ctx.drawImage(img, px.snap(f.x) - (img.width >> 1), px.snap(f.y) - (img.height >> 1)); }
+    if (f.type === 'mark') { if (JR.areaArt) JR.areaArt.drawMark(ctx, f, t); }
+    else if (f.type === 'flash') { const img = JR.packart.flash(f.t > 0.03 ? 0 : 1); ctx.drawImage(img, px.snap(f.x) - (img.width >> 1), px.snap(f.y) - (img.height >> 1)); }
     else if (f.type === 'dust') { if (A.ready) A.draw(ctx, 'dust.jump', 0.25 - f.t, f.x, f.y + 1, { loop: false }); }
     else if (f.type === 'smoke') {
       const k = 1 - f.t / 0.4, r = Math.max(1, Math.round(2 + k * 3));

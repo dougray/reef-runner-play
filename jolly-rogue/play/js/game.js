@@ -69,6 +69,21 @@
   let best = profile.best;
   let quarters = null, quartersThen = 'title', banked = 0, shop = null, shopIn = 0, endIn = 0, voyage = null, endRow = 0;
 
+  // Checkpoints (js/voyage.js): every level reached can be set sail from. `?level=N` (1-8) offers
+  // level N for this visit without saving anything, for play-testing.
+  const OFFER = params.has('level') ? JR.clampLevel((+params.get('level') || 1) - 1) : null;
+  let unlocked = Math.max(JR.loadUnlocked(STORE), OFFER ?? 0);
+  let startLevel = OFFER ?? JR.loadStart(STORE);
+  let runStart = startLevel;                                   // where the current run set sail
+  const picking = () => unlocked > 0;
+  function pick(d) {
+    startLevel = (startLevel + d + unlocked + 1) % (unlocked + 1);
+    if (OFFER == null) JR.saveStart(STORE, startLevel);
+    sfx.play('hit');
+    if (state === 'title') newRun();                           // the title shows that level behind it
+    announce(`Set sail from level ${startLevel + 1}, ${JR.LEVELS[startLevel].name.toLowerCase()}.`);
+  }
+
   const input = JR.newInput();
   let state = 'title', t = 0, overT = 0, pauseRow = 0, contRow = 0;
   const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;   // no screen shake
@@ -90,9 +105,11 @@
 
   function newRun() {
     const seed = +params.get('seed') || (Date.now() & 0xffffffff);
-    level = JR.makeLevel(seed);
+    runStart = startLevel;
+    level = JR.makeLevel(seed, runStart);
     level.ensure(40);
     world = JR.makeWorld(seed);
+    world.hazards = [];
     player = JR.makePlayer(48, GROUND_Y - 24);
     JR.applyBuild(player, profile.equip);
     player.god = GOD;
@@ -220,6 +237,10 @@
       return;
     }
     if (code === 'KeyC' && (state === 'title' || (state === 'over' && overT > 0.8))) { openQuarters('title'); return; }
+    if (picking() && (state === 'title' || (state === 'over' && overT > 0.8))) {
+      if (code === 'ArrowLeft' || code === 'KeyA') { pick(-1); return; }
+      if (code === 'ArrowRight' || code === 'KeyD') { pick(1); return; }
+    }
     if (state === 'paused' && /^(ArrowUp|ArrowDown|KeyW|KeyS)$/.test(code)) { pauseRow = 1 - pauseRow; return; }
     if (state === 'paused' && /^(Enter|Space|KeyX|KeyJ)$/.test(code)) { if (pauseRow) quitToTitle(); else setState('play'); input.jumpPressed = input.firePressed = false; return; }
     if (code === 'KeyM') sfx.toggleMute();
@@ -282,7 +303,10 @@
       return;
     }
     if (state === 'title' || (state === 'over' && overT > 0.8)) {
-      if (near(y, state === 'title' ? 118 : 170)) openQuarters('title'); else start();
+      if (picking() && near(y, pickY())) {
+        const W = viewW();
+        if (x < W / 2 - 50) pick(-1); else if (x > W / 2 + 50) pick(1); else start();
+      } else if (near(y, state === 'title' ? 118 : 170)) openQuarters('title'); else start();
     } else if (state === 'paused') {
       if (near(y, JR.VIEW_H / 2 + 14)) setState('play');
       else if (near(y, JR.VIEW_H / 2 + 28)) quitToTitle();
@@ -314,6 +338,7 @@
     while (nextSpawn < level.spawns.length && level.spawns[nextSpawn].x < edge) {
       const s = level.spawns[nextSpawn++];
       if (JR.ENEMY_DEFS[s.type]) world.enemies.push(JR.spawnEnemy(s));
+      else if (JR.HAZARD_DEFS[s.type]) world.hazards.push(JR.makeHazard(s));
       else world.pickups.push(JR.makePickup(s.type, s.x + 8, s.y + 8));
     }
   }
@@ -345,7 +370,7 @@
       if (a) {
         arena = a;
         lockX = a.x0 + 48;
-        boss = JR.makeBoss(a.nation, lockX + JR.VIEW_W + 8, 15 * JR.TILE, lockX + 4, lockX + JR.VIEW_W - 4, Math.floor(a.seg / 4));
+        boss = JR.makeBoss(a.nation, lockX + JR.VIEW_W + 8, 15 * JR.TILE, lockX + 4, lockX + JR.VIEW_W - 4, Math.floor(a.seg / JR.BIOMES.length));
         world.enemies.push(boss);
         banner = { a: boss.name, b: 'BLOCKS YER WAY!', t: 2.4 };
         announce(`Boss: ${boss.name.toLowerCase()} blocks your way.`);
@@ -355,6 +380,7 @@
     if (arena) player.x = Math.min(player.x, lockX + JR.VIEW_W - player.w - 2);
 
     for (const e of world.enemies) JR.updateEnemy(e, player, level, world, DT);
+    for (const h of world.hazards) JR.updateHazard(h, player, level, world, DT, camX);
 
     JR.updateCorpses(world, level, DT);
 
@@ -387,7 +413,8 @@
     if (banner) banner.t -= DT;
 
     if (endIn > 0 && (endIn -= DT) <= 0 && !player.dead) {
-      voyage = JR.finishVoyage(profile, player, seg);
+      voyage = JR.finishVoyage(profile, player, seg, runStart);
+      voyage.from = seg < JR.BIOMES.length ? runStart : 0;
       JR.saveProfile(STORE, profile);
       setState('ending');
       overT = 0;
@@ -401,17 +428,28 @@
       sfx.play('area');
     }
 
-    // Entering a new area: name it and its navy.
+    // Entering a new level: name it and its crew, and save it as a checkpoint the first time.
     const s2 = level.segmentAt(Math.floor((camX + JR.VIEW_W / 2) / JR.TILE));
     if (s2 !== seg) {
       if (seg >= 0) sfx.play('area');
       seg = s2;
-      const c = Math.floor((camX + JR.VIEW_W / 2) / JR.TILE);
-      banner = { a: JR.BIOME_NAMES[level.biomeAt(c)], b: JR.NATION_NAMES[level.nationAt(c)], t: 2.6 };
-      announce(`${banner.a.toLowerCase()}, ${banner.b.toLowerCase()}.`);
+      const c = Math.floor((camX + JR.VIEW_W / 2) / JR.TILE), index = seg % JR.BIOMES.length;
+      banner = { a: JR.BIOME_NAMES[level.biomeAt(c)], b: `LEVEL ${index + 1}  ·  ${JR.NATION_NAMES[level.nationAt(c)]}`, t: 2.6 };
+      let saved = '';
+      if (index > unlocked) {
+        unlocked = index;
+        if (OFFER == null) JR.unlockLevel(STORE, index);
+        banner.c = 'CHECKPOINT! START HERE FROM THE TITLE';
+        sfx.play('checkpoint');
+        saved = ' Checkpoint saved.';
+      }
+      announce(`Level ${index + 1}: ${banner.a.toLowerCase()}, ${JR.NATION_NAMES[level.nationAt(c)].toLowerCase()}.${saved}`);
     }
+    // Thunder rolls with the Ghost Ship's lightning.
+    if (level.biomeAt(Math.max(0, Math.floor((camX + JR.VIEW_W / 2) / JR.TILE))) === 'ghost' && JR.lightning(t) === 1 && JR.lightning(t - DT) !== 1) sfx.play('thunder');
     world.enemies = world.enemies.filter(e => e.hp > 0 && e.x > camX - 64);
     world.pickups = world.pickups.filter(k => k.x > camX - 64 && k.y < JR.WORLD_H + 32);
+    world.hazards = world.hazards.filter(h => h.x > camX - 30 * JR.TILE - 64 || h.pending);
 
     // Camera: eases forward (never back) and looks a little ahead while running right.
     look += ((player.vx > 10 ? 36 : 0) - look) * Math.min(1, DT * 2.5);
@@ -453,10 +491,12 @@
       cropX += (target - cropX) * (state === 'play' ? 0.1 : 1);
       ctx.translate(-Math.round(cropX * scale) / scale, 0);
     } else cropX = 0;
-    art.drawSky(ctx, cam, t, level.biomeAt(mid), Math.floor(level.segmentAt(mid) / JR.BIOMES.length) + 1);
+    const biome = level.biomeAt(mid);
+    art.drawSky(ctx, cam, t, biome, Math.floor(level.segmentAt(mid) / JR.BIOMES.length) + 1);
     ctx.save();
     ctx.translate(-Math.round(cam * scale) / scale, -JR.CAM_Y);
-    art.drawTiles(ctx, level, cam);
+    art.drawTiles(ctx, level, cam, t);
+    for (const h of world.hazards) art.drawHazard(ctx, h, t);
     for (const k of world.pickups) art.drawPickup(ctx, k, lerp(k, 'x'), lerp(k, 'y'), t);
     for (const k of world.corpses) art.drawCorpse(ctx, k, lerp(k, 'x') + k.w / 2, lerp(k, 'y') + k.h);
     for (const e of world.enemies) art.drawEnemy(ctx, e, lerp(e, 'x') + e.w / 2, lerp(e, 'y') + e.h, t);
@@ -464,6 +504,7 @@
     for (const s of world.shots) art.drawShot(ctx, s, lerp(s, 'x'), lerp(s, 'y'), t);
     for (const f of world.fx) art.drawFx(ctx, f, t);
     ctx.restore();
+    if (state !== 'title') art.drawWeather(ctx, cam, t, biome, calm);
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     // The HUD and overlays lay out across what is on screen.
@@ -483,6 +524,7 @@
       const go = JR.touchMode() ? 'TAP TO SET SAIL' : JR.padMode() ? 'PRESS A / OK TO SET SAIL' : 'PRESS SPACE TO SET SAIL';
       if (Math.floor(t * 2) % 2 === 0) { JR.ui.banner(ctx, W / 2, 98, JR.px.textImage(go).width + 36); ink(go, 104); }
       say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : JR.padMode() ? `Y OR ${quartersButton()}: CAPTAIN'S QUARTERS` : "C: CAPTAIN'S QUARTERS", 118, 1, '#fcc838');
+      drawPicker(W);
       if (JR.remoteMode()) {
         say('HOLD THE REMOTE SIDEWAYS: RING MOVES + AIMS', 196, 1, '#fce4a8');
         say(`OK JUMPS (LAND ON FOES TO STAB)  ·  ${quartersButton()} FIRES`, 207, 1, '#fce4a8');
@@ -511,6 +553,7 @@
       JR.ui.banner(ctx, W / 2, 44, JR.px.textImage(banner.a).width + 48);
       ink(banner.a, 50);
       say(banner.b, 64, 1, '#fcc838');
+      if (banner.c) say(banner.c, 76, 1, '#7cfc7c');
     }
     if (sfx.muted) say('MUTED', 8, 1, '#bcdcfc');
     if (state === 'shop') JR.drawShop(ctx, shop, t);
@@ -530,7 +573,7 @@
       JR.ui.panel(ctx, 'board', W / 2 - 150, 10, 300, 196);
       if (v.voyage === 1) { say('THE SEVEN SEAS', 32, 2, '#fcc838'); say('ARE YERS!', 52, 2); }
       else { say(`VOYAGE ${v.voyage}`, 32, 2, '#fcc838'); say('COMPLETE!', 52, 2); }
-      say('FOUR AREAS. FOUR BOSSES SUNK.', 76, 1, '#fce4a8');
+      say(v.from ? `FROM LEVEL ${v.from + 1}: ${JR.BIOMES.length - v.from} LEVELS, ${JR.BIOMES.length - v.from} BOSSES SUNK.` : 'EIGHT LEVELS. EIGHT BOSSES SUNK.', 76, 1, '#fce4a8');
       say('EVERY PORT NOW KNOWS YER NAME, CAPTAIN.', 88, 1, '#fce4a8');
       say(`SAILORS ${player.kills}   BOSSES ${player.bosses || 0}   SCORE ${score()}`, 108);
       say(`CAPTAIN'S SHARE  +${v.bonus} GOLD`, 122, 1, '#fcc838');
@@ -561,6 +604,23 @@
       say(`+${banked} GOLD TO YER CHEST   (${profile.gold} IN ALL)`, 132, 1, '#fcc838');
       if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(JR.touchMode() ? 'TAP TO SAIL AGAIN' : JR.padMode() ? 'PRESS A / OK TO SAIL AGAIN' : 'PRESS SPACE TO SAIL AGAIN', 156);
       if (overT > 0.8) say(JR.touchMode() ? "TAP HERE: CAPTAIN'S QUARTERS" : JR.padMode() ? `Y OR ${quartersButton()}: CAPTAIN'S QUARTERS` : "C: CAPTAIN'S QUARTERS", 170, 1, '#fce4a8');
+      if (overT > 0.8) drawPicker(W);
+    }
+  }
+
+  // The checkpoint picker on the title and game-over screens: "< LEVEL 3: SKULL ISLE RUINS >".
+  const pickY = () => (state === 'title' ? 140 : 196);
+  function drawPicker(W) {
+    if (!picking()) return;
+    const y = pickY(), name = `SET SAIL FROM  LEVEL ${startLevel + 1}: ${JR.LEVELS[startLevel].name}`;
+    const half = JR.px.textImage(name).width / 2 + 14;
+    art.text(ctx, name, W / 2, y, { align: 'center', color: '#fcfcfc' });
+    const blinkOn = Math.floor(t * 3) % 2 === 0;
+    art.text(ctx, '<', W / 2 - half, y, { align: 'center', color: blinkOn ? '#fcc838' : '#c88810' });
+    art.text(ctx, '>', W / 2 + half, y, { align: 'center', color: blinkOn ? '#fcc838' : '#c88810' });
+    if (state === 'title') {
+      const how = JR.touchMode() ? 'TAP THE ARROWS TO CHOOSE' : 'LEFT / RIGHT TO CHOOSE';
+      art.text(ctx, `${how}  ·  ${unlocked + 1} OF ${JR.BIOMES.length} LEVELS REACHED`, W / 2, y + 12, { align: 'center', color: '#bcdcfc' });
     }
   }
 
@@ -595,7 +655,7 @@
     window.jr = {
       get state() { return state; }, get player() { return player; }, get world() { return world; },
       get level() { return level; }, get camX() { return camX; }, get boss() { return boss; }, input,
-      get profile() { return profile; }, get voyage() { return voyage; }, get shop() { return shop; }, get quarters() { return quarters; }, openQuarters, closeQuarters,
+      get profile() { return profile; }, get voyage() { return voyage; }, get unlocked() { return unlocked; }, get startLevel() { return startLevel; }, get runStart() { return runStart; }, get banner() { return banner; }, pick, get shop() { return shop; }, get quarters() { return quarters; }, openQuarters, closeQuarters,
       key: code => window.dispatchEvent(new KeyboardEvent('keydown', { code })),
       start, tap, step(n = 1) { for (let i = 0; i < n; i++) step(); alpha = 1; render(); },
       // Jump the run ahead to a column (for screenshots of later areas).
@@ -603,7 +663,7 @@
         level.ensure(col + 40);
         player.x = col * JR.TILE; player.y = 4 * JR.TILE; player.vy = 0;
         camX = prevCam = player.x - 150;
-        world.enemies.length = world.shots.length = world.pickups.length = 0;
+        world.enemies.length = world.shots.length = world.pickups.length = world.hazards.length = 0;
         arena = null; boss = null;
         while (nextSpawn < level.spawns.length && level.spawns[nextSpawn].x < camX) nextSpawn++;
       },

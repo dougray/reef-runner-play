@@ -35,30 +35,50 @@
   };
 
   // Tiles are stretched to whole device pixels so no seams show at in-between (phone) scales.
-  const blit = (ctx, sx, sy, sw, sh, x, y, w, h) => {
+  const blit = (ctx, sx, sy, sw, sh, x, y, w, h, img = A().image) => {
     const snap = JR.px.snap, x0 = snap(x), y0 = snap(y);
-    ctx.drawImage(A().image, sx, sy, sw, sh, x0, y0, snap(x + w) - x0, snap(y + h) - y0);
+    ctx.drawImage(img, sx, sy, sw, sh, x0, y0, snap(x + w) - x0, snap(y + h) - y0);
   };
+
+  // The new levels build from another level's tiles, tinted once into a copy of that sheet
+  // (source-atop keeps the transparent parts transparent). The first four use the atlas directly.
+  const tinted = {};
+  function terrainFor(biome) {
+    const lvl = JR.levelOf && JR.levelOf(biome);
+    if (!lvl || !lvl.terrain) { const set = TERRAIN[biome] || TERRAIN.beach; return { set, f: A().frameAt(set.anim, 0), img: A().image }; }
+    if (!tinted[biome]) {
+      const set = TERRAIN[lvl.terrain.from], f = A().frameAt(set.anim, 0);
+      const c = JR.px.canvas(f.w, f.h), g = c.getContext('2d');
+      g.drawImage(A().image, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = lvl.terrain.tint; g.fillRect(0, 0, f.w, f.h);
+      g.globalCompositeOperation = 'source-over';
+      tinted[biome] = { set, f: { x: 0, y: 0 }, img: c };
+    }
+    return tinted[biome];
+  }
 
   const maskAt = (lv, c, r) => {
     const s = (dc, dr) => (r + dr >= JR.ROWS ? 1 : lv.solid(c + dc, r + dr) ? 1 : 0);
     return s(0, -1) | s(1, 0) << 1 | s(0, 1) << 2 | s(-1, 0) << 3 | s(1, -1) << 4 | s(1, 1) << 5 | s(-1, 1) << 6 | s(-1, -1) << 7;
   };
 
-  const drawTiles = (ctx, lv, camX) => {
+  const drawTiles = (ctx, lv, camX, t = 0) => {
     if (!A().ready) return;
     const T = JR.TILE, c0 = Math.floor(camX / T) - 1, c1 = c0 + Math.ceil(W() / T) + 2;
     const plat = A().frameAt('ship.platforms', 0);
     for (let c = c0; c <= c1; c++) {
-      const set = TERRAIN[lv.biomeAt(Math.max(0, c))], f = A().frameAt(set.anim, 0);
+      const biome = lv.biomeAt(Math.max(0, c)), { set, f, img } = terrainFor(biome);
       for (let r = 3; r < JR.ROWS; r++) {
-        const t = lv.tile(c, r), x = c * T, y = r * T;
-        if (t === '#') {
+        const tile = lv.tile(c, r), x = c * T, y = r * T;
+        if (tile === '#') {
           const [qx, qy, notch] = JR.quarterFor(maskAt(lv, c, r), c, r);
-          blit(ctx, f.x + set.ox + qx * set.q, f.y + set.oy + qy * set.q, set.q, set.q, x, y, T, T);
+          blit(ctx, f.x + set.ox + qx * set.q, f.y + set.oy + qy * set.q, set.q, set.q, x, y, T, T, img);
           const n = notch && set.notch && set.notch[notch];
-          if (n) blit(ctx, f.x + n[0], f.y + n[1], 16, 16, x, y, T, T);
-        } else if (t === '=') {
+          if (n) blit(ctx, f.x + n[0], f.y + n[1], 16, 16, x, y, T, T, img);
+        } else if (tile === '^' || tile === '~') {
+          if (JR.areaArt) JR.areaArt.drawHazardTile(ctx, lv, c, r, x, y, t, biome);
+        } else if (tile === '=') {
           const l = lv.platform(c - 1, r), rr = lv.platform(c + 1, r);
           const sx = !l ? 32 : !rr ? 112 : 48 + mod(c, 4) * 16;
           blit(ctx, plat.x + sx, plat.y + 32, 16, 16, x, y, T, T);
@@ -122,6 +142,7 @@
   JR.backdropFor = (biome, voyage = 1) => (voyage % 2 === 0 && JR.PAINTED && JR.PAINTED[biome + '2'] ? biome + '2' : biome);
 
   const drawBackdrop = (ctx, camX, t, biome, voyage = 1) => {
+    if (JR.areaArt && JR.areaArt.backdrop(ctx, camX, t, biome)) return;   // the new levels (js/art-areas.js)
     if (paintedBackdrop(ctx, camX, JR.backdropFor(biome, voyage))) return;
     if (!A().ready) return;
     if (biome === 'beach') {
@@ -143,5 +164,5 @@
     }
   };
 
-  JR.artWorld = { drawTiles, drawBackdrop, TERRAIN };
+  JR.artWorld = { drawTiles, drawBackdrop, TERRAIN, terrainFor, painted: paintedBackdrop };
 })();

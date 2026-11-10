@@ -1,4 +1,5 @@
-// Music: original tunes, one for the harbour (menus), one per area and a boss theme. Each tune is
+// Music: original tunes, one for the harbour (menus), one per area (the newer skies have their own
+// or share one, see areas.js `tune`) and a boss theme. Each tune is
 // a few 4-bar parts strung into a form, so it runs 40+ seconds before it repeats, and each has a
 // quiet part where the lead mostly rests. Three soft synth voices (a triangle lead with a little
 // vibrato, a triangle bass, light noise drums) go through a gentle low-pass filter and are
@@ -148,6 +149,84 @@
           lead: 'A5 - - - - - - - | . . . . . . . . | G#5 - - - - - - - | . . . . . . . .',
           bass: 'A2 . . . E3 . . . | A2 . . . E3 . . . | E2 . . . B2 . . . | E2 . . . B2 . . .',
           drums: 'k...............',
+        },
+      },
+    },
+    night: {     // the Midnight Picket: hushed and watchful, creeping between the beams
+      bpm: 104,
+      form: 'A B A2 C B A2',
+      parts: {
+        A: {
+          lead: 'D5 - - A4 F4 - A4 - | C5 - - - A4 - - - | A#4 - D5 - F5 - E5 D5 | C#5 - - - . . . .',
+          bass: 'D3 . A2 . D3 . A2 . | F2 . C3 . F2 . C3 . | A#2 . F2 . A#2 . F2 . | A2 . E2 . A2 . C#3 .',
+          drums: 'k.......s...h...',
+        },
+        A2: {
+          lead: 'D5 - - A4 F4 - A4 - | C5 - - - A4 - - - | A#4 - D5 - F5 - G5 E5 | D5 - - - . . . .',
+          bass: 'D3 . A2 . D3 . A2 . | F2 . C3 . F2 . C3 . | A#2 . F2 . A2 . E2 . | D3 . A2 . D3 . . .',
+          drums: 'k.......s...h...',
+        },
+        B: {
+          lead: 'F5 - - E5 D5 - - - | E5 - - D5 C5 - - - | D5 - - C5 A#4 - A4 - | A4 - - - E5 - - -',
+          bass: 'A#2 . F2 . A#2 . F2 . | C3 . G2 . C3 . G2 . | G2 . D3 . G2 . D3 . | A2 . E2 . A2 . E2 .',
+          drums: 'k...h...s...h...',
+        },
+        C: {     // the quiet part: a searchlight passes
+          lead: '. . . . . . . . | A5 - - - . . . . | . . . . . . . . | F5 - - - . . . .',
+          bass: 'D3 . . . A2 . . . | D3 . . . A2 . . . | A#2 . . . F2 . . . | A2 . . . E2 . . .',
+          drums: 'k...............',
+        },
+      },
+    },
+    frost: {     // the Frozen Heights: bright and glassy, high in the thin air
+      bpm: 112,
+      form: 'A A2 B C A2 B',
+      parts: {
+        A: {
+          lead: 'B5 - G#5 - E5 - G#5 - | A5 - F#5 - D#5 - - - | E5 - G#5 - B5 - C#6 - | B5 - - - . . . .',
+          bass: 'E3 . B2 . E3 . B2 . | B2 . F#2 . B2 . F#2 . | C#3 . G#2 . C#3 . G#2 . | B2 . F#2 . B2 . . .',
+          drums: 'k...h...s...h...',
+        },
+        A2: {
+          lead: 'B5 - G#5 - E5 - G#5 - | A5 - F#5 - D#5 - - - | C#5 - E5 - A5 - G#5 F#5 | E5 - - - . . . .',
+          bass: 'E3 . B2 . E3 . B2 . | B2 . F#2 . B2 . F#2 . | A2 . E3 . B2 . F#2 . | E3 . B2 . E3 . . .',
+          drums: 'k...h...s...h...',
+        },
+        B: {
+          lead: 'G#5 - - - F#5 - E5 - | F#5 - - - E5 - D#5 - | E5 - - - C#5 - B4 - | C#5 - D#5 - E5 - F#5 -',
+          bass: 'C#3 . G#2 . C#3 . G#2 . | A2 . E2 . A2 . E2 . | E2 . B2 . E2 . B2 . | F#2 . C#3 . B2 . F#2 .',
+          drums: 'k.h.s.h.k.h.s.h.',
+        },
+        C: {     // the quiet part: wind over the ice
+          lead: '. . . . . . . . | E6 - - - . . . . | . . . . . . . . | B5 - - - . . . .',
+          bass: 'E3 . . . . . . . | E3 . . . B2 . . . | A2 . . . . . . . | B2 . . . . . . .',
+          drums: 'h.......h.......',
+        },
+      },
+    },
+    ash: {       // the Ash Clouds: hot, low and driving over the volcano
+      bpm: 132,
+      form: 'A A2 B C A2 B',
+      parts: {
+        A: {
+          lead: 'A4 - A4 A#4 A4 - G4 - | A4 - C5 - A#4 - A4 - | E5 - D5 - C5 - A#4 - | A4 - - - . . . .',
+          bass: 'A1 . A2 . A1 . A2 . | A1 . A2 . A1 . A2 . | F1 . F2 . G1 . G2 . | A1 . A2 . A1 . E2 .',
+          drums: 'k.k.s...k.k.s.h.',
+        },
+        A2: {
+          lead: 'A4 - A4 A#4 A4 - G4 - | A4 - C5 - A#4 - A4 - | E5 - F5 - E5 - D5 - | E5 - - - . . . .',
+          bass: 'A1 . A2 . A1 . A2 . | A1 . A2 . A1 . A2 . | C2 . C3 . D2 . D3 . | E2 . E3 . E2 . . .',
+          drums: 'k.k.s...k.k.s.h.',
+        },
+        B: {
+          lead: 'D5 - - C5 A#4 - C5 - | D5 - F5 - E5 - D5 - | C5 - - A#4 A4 - G4 - | A4 - - - E4 - - -',
+          bass: 'D2 . D3 . D2 . D3 . | A#1 . A#2 . A#1 . A#2 . | F1 . F2 . G1 . G2 . | A1 . A2 . E2 . . .',
+          drums: 'k...s...k...s...',
+        },
+        C: {     // the quiet part: the mountain rumbles
+          lead: '. . . . . . . . | . . . . . . . . | A5 - - - . . . . | G5 - - - . . . .',
+          bass: 'A1 . . . . . . . | A1 . . . E2 . . . | F1 . . . . . . . | E1 . . . . . . .',
+          drums: 'k.......k.......',
         },
       },
     },

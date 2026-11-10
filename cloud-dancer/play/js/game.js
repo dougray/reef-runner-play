@@ -1,10 +1,13 @@
 // Game: states (title, hangar, play, market, paused, over), the fixed-step loop with interpolated
-// drawing, HUD, menus (keys and taps), music and sound cues, saving, and the ?god test hook.
+// drawing, HUD, menus (keys and taps), the stage picker (checkpoints), music and sound cues, saving,
+// and the ?god test hook (?area=N offers stage N on the title for that visit, without saving).
 (() => {
   const CD = window.CD;
   const art = CD.art;
   const DT = 1 / 60;
-  const GOD = new URLSearchParams(location.search).has('god');
+  const PARAMS = new URLSearchParams(location.search);
+  const GOD = PARAMS.has('god');
+  const AREA_PARAM = /^\d+$/.test(PARAMS.get('area') || '') ? Math.min(CD.AREAS.length - 1, +PARAMS.get('area')) : null;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -44,6 +47,10 @@
   const STORE = store || { getItem: () => null, setItem() {} };
   const profile = CD.loadProfile(STORE);
   const saveProfile = () => CD.saveProfile(STORE, profile);
+  // Checkpoints: the stages reached on this device and the one to set sail from.
+  const stages = CD.loadStages(STORE);
+  if (AREA_PARAM !== null) { stages.reached = Math.max(stages.reached, AREA_PARAM); stages.start = AREA_PARAM; }
+  const saveStages = () => { if (AREA_PARAM === null) CD.saveStages(STORE, stages); };
 
   const input = CD.newInput();
   let state = 'title', t = 0, overT = 0, marketIn = 0, banked = null, beatenSeen = 0;
@@ -60,7 +67,7 @@
 
   // A fresh sky (behind the title, or for a new run).
   function freshWorld() {
-    world = CD.makeWorld(Math.floor(Math.random() * 1e9));
+    world = CD.makeWorld(Math.floor(Math.random() * 1e9), stages.start);
     ship = CD.applyLoadout(CD.makeShip(), profile.equip);
     prev.clear();
     overT = 0; banner = null; areaShown = -1; market = null; marketIn = 0; banked = null; beatenSeen = 0;
@@ -69,11 +76,29 @@
     freshWorld();
     setState('play');
     document.documentElement.classList.add('hint'); setTimeout(() => document.documentElement.classList.remove('hint'), 3500);
+    if (world.startArea > 0) return openStake();
     announce('Cast off! Drag to steer, the cannons fire on their own.');
+  }
+  // A run from a checkpoint fits out first: the Sky Market with the quartermaster's stake.
+  function openStake() {
+    world.gold = CD.stakeFor(world.startArea);
+    market = CD.makeMarket(world, ship); market.stake = true;
+    setState('market');
+    announce(`Setting sail from ${CD.AREAS[world.startArea].name.toLowerCase()}. The quartermaster's stake: ${world.gold} gold to fit out with. What isn't spent stays in port.`);
+  }
+  // The stage picker on the title and game-over screens (only once a second stage is reached).
+  const pickerShown = () => stages.reached > 0;
+  const titleHangarY = () => (pickerShown() ? 154 : 146);   // the Hangar line moves down to make room for the picker
+  function pickStage(dir) {
+    CD.pickStage(stages, dir); saveStages();
+    if (state === 'title') freshWorld();
+    CD.sfx && CD.sfx.play('hit');
+    announce(`Set sail from stage ${stages.start + 1} of ${CD.AREAS.length}, ${CD.AREAS[stages.start].name.toLowerCase()}.`);
   }
   freshWorld(); setState('title');
 
   // ---------- the Hangar (between runs, banked gold) ----------
+  CD.PICKER_Y = { title: 132, over: 186 };         // the stage picker's line on the title and game-over screens
   CD.HLAYOUT = { top: 46, step: 13, labelX: 150, valueX: 268, priceX: 372, buy: { x: 150, y: 194, w: 70, h: 14 }, done: { x: 260, y: 194, w: 70, h: 14 } };
   function openHangar() {
     hangar = { row: 0, view: { ...profile.equip }, msg: '', msgT: 0 };
@@ -110,7 +135,10 @@
     if (r === 'leave') return leaveMarket();
     CD.sfx && CD.sfx.play(r === 'bought' ? 'pickup' : 'hurt');
   }
-  function leaveMarket() { market = null; CD.castOff(world, ship); setState('play'); announce('Back to the skies.'); }
+  function leaveMarket() {
+    if (market.stake) world.gold = 0;                    // the stake stays in port
+    market = null; CD.castOff(world, ship); setState('play'); announce('Back to the skies.');
+  }
 
   const togglePause = () => { if (state === 'play') setState('paused'); else if (state === 'paused') setState('play'); };
   const canRestart = () => state === 'title' || (state === 'over' && overT > 0.8);
@@ -141,6 +169,8 @@
     }
     if (code === 'KeyP' || code === 'Escape') return togglePause();
     if (code === 'KeyH' && canRestart()) return openHangar();
+    if (canRestart() && pickerShown() && (code === 'ArrowLeft' || code === 'KeyA')) return pickStage(-1);
+    if (canRestart() && pickerShown() && (code === 'ArrowRight' || code === 'KeyD')) return pickStage(1);
     if (canRestart() && (code === 'Enter' || code === 'Space')) { start(); input.dashPressed = false; }
   });
   // Controllers and TV remotes (js/pad.js). A (OK on a remote) starts, dashes and buys; B backs
@@ -176,7 +206,8 @@
   const hit = (b, x, y) => x >= b.x && x <= b.x + b.w && y >= b.y - 3 && y <= b.y + b.h + 3;
   function tap(x, y) {
     if (state === 'title' || (state === 'over' && overT > 0.8)) {
-      if (Math.abs(y - (state === 'title' ? 146 : 168)) < 9) openHangar(); else start();
+      if (pickerShown() && Math.abs(y - (state === 'title' ? CD.PICKER_Y.title : CD.PICKER_Y.over)) < 8) pickStage(x < CD.VIEW_W / 2 ? -1 : 1);
+      else if (Math.abs(y - (state === 'title' ? titleHangarY() : 168)) < 9) openHangar(); else start();
     } else if (state === 'paused') setState('play');
     else if (state === 'hangar') {
       const L = CD.HLAYOUT;
@@ -228,14 +259,20 @@
     CD.updateWorld(world, ship, input, DT);
     const area = CD.areaAt(world.distance), n = Math.floor(world.distance / CD.AREA_LEN);
     if (n !== areaShown) {
-      areaShown = n; banner = { a: area.name, b: area.loop ? `LOOP ${area.loop + 1}` : 'THE KING\'S AERIAL NAVY', t: 2.6 };
-      announce(area.name.toLowerCase() + '.');
+      // Flying into a stage (not starting there) unlocks it as a checkpoint.
+      const fresh = areaShown !== -1 && CD.unlockStage(stages, area.index);
+      if (fresh) { saveStages(); CD.sfx && CD.sfx.play('checkpoint'); }
+      areaShown = n;
+      banner = { a: area.name, b: fresh ? 'CHECKPOINT UNLOCKED!' : area.loop ? `LOOP ${area.loop + 1}  ·  ${area.sub}` : area.sub, t: 2.6 };
+      announce(`Stage ${area.index + 1}, ${area.name.toLowerCase()}. ${area.sub.toLowerCase()}.` + (fresh ? ' Checkpoint unlocked.' : ''));
     }
     if (banner) banner.t -= DT;
     for (const ev of world.events) {
       if (CD.sfx) CD.sfx.play(ev.name);
       if (ev.name === 'bossIn') { banner = { a: world.boss.name, b: 'BLOCKS YER COURSE!', t: 2.6 }; announce(world.boss.name.toLowerCase() + ' blocks your course!'); }
       if (ev.name === 'lifeLost' && !ship.dead) announce(`Hull breached! ${ship.lives} lives left.`);
+      if (ev.name === 'setPiece') { banner = { a: ev.title, b: ev.sub, t: 2.4 }; announce(`${ev.title.toLowerCase()} ${ev.sub.toLowerCase()}`); }
+      if (ev.name === 'spotted') announce('Spotted by a searchlight!');
       if (ev.name === 'extraLife') { banner = { a: 'EXTRA LIFE!', b: '200 GOLD THIS RUN', t: 2 }; announce('Extra life for 200 gold.'); }
     }
     if ((world.bossesBeaten || 0) > beatenSeen) {          // a boss went down: victory, then the Sky Market
@@ -257,7 +294,7 @@
     if (state === 'over' || state === 'paused') CD.music.stop();
     else if (state === 'title' || state === 'hangar' || state === 'market') CD.music.play('harbour');
     else if (world.boss) CD.music.play('boss');
-    else CD.music.play(CD.areaAt(world.distance).id);
+    else { const a = CD.areaAt(world.distance); CD.music.play(a.tune || a.id); }
     CD.music.update();
   }
 
@@ -288,6 +325,9 @@
     for (const e of world.enemies) if (e.type === 'lurker' && e.hidden) { const p = at(e); art.drawLurkerEyes(ctx, p.x, p.y, t); }
     for (const b of world.bolts) art.drawBolt(ctx, b, t);
     for (const h of world.hazards) art.drawHazard(ctx, h, t);
+    for (const f of world.falls) art.drawFall(ctx, f, t);
+    for (const c of world.curtains) art.drawCurtain(ctx, c, t);
+    if (world.gust) art.drawGust(ctx, world.gust, t);
     for (const f of world.fx) art.drawFx(ctx, f);
     art.drawNearClouds(ctx, dist, areaId, t);
 
@@ -298,8 +338,9 @@
       if (logo) ctx.drawImage(logo, W / 2 - 50, 4, 100, 100 * logo.height / logo.width);
       else { say('CLOUD DANCER', 52, 28, '#ffd34e'); say('BEYOND THE REEF', 76, 11, '#ffffff'); }
       if (Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO CAST OFF' : padMode() ? 'PRESS A / OK TO CAST OFF' : 'PRESS SPACE TO CAST OFF', 118, 10);
-      say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? `Y OR ${hangarButton()}: THE HANGAR` : 'H: THE HANGAR', 146, 8, '#ffd34e');
-      say(`${profile.gold} GOLD IN YER CHEST` + (profile.best ? `   ·   BEST ${profile.best}` : ''), 164, 7, '#cfe8ff');
+      if (pickerShown()) art.drawPicker(ctx, stages, CD.PICKER_Y.title, t, pickHint());
+      say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? `Y OR ${hangarButton()}: THE HANGAR` : 'H: THE HANGAR', titleHangarY(), 8, '#ffd34e');
+      say(`${profile.gold} GOLD IN YER CHEST` + (profile.best ? `   ·   BEST ${profile.best}` : ''), titleHangarY() + 17, 7, '#cfe8ff');
       say(touchMode() ? 'DRAG TO STEER · CANNONS FIRE ON THEIR OWN · STEAM = DASH'
         : remoteMode() ? 'HOLD THE REMOTE SIDEWAYS · RING STEERS · OK = FULL STEAM'
         : padMode() ? 'STICK OR D-PAD STEERS · CANNONS FIRE ON THEIR OWN · A = FULL STEAM'
@@ -307,11 +348,14 @@
       return;
     }
     art.drawHud(ctx, ship, world, profile.best, hudInset());
+    { const a = CD.areaAt(world.distance); art.text(ctx, `STAGE ${a.index + 1}/${CD.AREAS.length}`, W / 2, 7, { size: 6, color: '#cfe8ff', align: 'center' }); }
     if (world.boss && world.boss.state !== 'enter') art.drawBossBar(ctx, world.boss);
     if (banner && banner.t > 0 && state === 'play' && (banner.t > 0.5 || Math.floor(t * 12) % 2)) {
       say(banner.a, 70, 15, '#ffd34e'); say(banner.b, 88, 8, '#ffffff');
     }
-    if (state === 'play' && !world.boss && CD.inCloud(world, ship)) art.text(ctx, 'HIDDEN IN THE CLOUDS', W / 2, H - 10, { size: 7, color: '#e8f4ff', align: 'center' });
+    if (state === 'play' && world.choking) art.text(ctx, 'ASH IS CHOKING YER BOILER!', W / 2, H - 10, { size: 7, color: '#ffb08a', align: 'center' });
+    else if (state === 'play' && world.spotted > 0 && !world.boss) art.text(ctx, 'SPOTTED!', W / 2, H - 10, { size: 7, color: '#fff2a0', align: 'center' });
+    else if (state === 'play' && !world.boss && CD.inCloud(world, ship)) art.text(ctx, 'HIDDEN IN THE CLOUDS', W / 2, H - 10, { size: 7, color: '#e8f4ff', align: 'center' });
     if (state === 'market') art.drawMarket(ctx, market, world, ship, t, touchMode() || document.documentElement.classList.contains('mouse'));
     else if (state === 'paused') {
       ctx.fillStyle = 'rgba(16,24,48,.5)'; ctx.fillRect(0, 0, W, H);
@@ -320,14 +364,17 @@
     } else if (state === 'over') {
       ctx.fillStyle = `rgba(16,24,48,${Math.min(0.6, overT)})`; ctx.fillRect(0, 0, W, H);
       say('SHOT DOWN!', 62, 24, '#ff9a3c');
+      { const a = CD.areaAt(world.distance); say(`STAGE ${a.index + 1}: ${a.name}` + (a.loop ? ` (LOOP ${a.loop + 1})` : ''), 80, 7, '#cfe8ff'); }
       say(`SCORE ${world.score}   BOSSES ${world.bossesBeaten || 0}`, 92, 9);
       say(banked && banked.newBest ? 'NEW BEST!' : `BEST ${profile.best}`, 108, 8, '#ffd34e');
       if (banked) say(`+${banked.banked} GOLD TO YER CHEST   (${profile.gold} IN ALL)`, 124, 8, '#ffd34e');
       if (overT > 0.8 && Math.floor(t * 2) % 2 === 0) say(touchMode() ? 'TAP TO FLY AGAIN' : padMode() ? 'PRESS A / OK TO FLY AGAIN' : 'PRESS SPACE TO FLY AGAIN', 150, 10);
       if (overT > 0.8) say(touchMode() ? 'TAP HERE: THE HANGAR' : padMode() ? `Y OR ${hangarButton()}: THE HANGAR` : 'H: THE HANGAR', 168, 8, '#cfe8ff');
+      if (overT > 0.8 && pickerShown()) art.drawPicker(ctx, stages, CD.PICKER_Y.over, t, pickHint());
     }
   }
 
+  const pickHint = () => (touchMode() ? 'TAP < > TO CHOOSE' : padMode() ? 'LEFT / RIGHT TO CHOOSE' : '\u2190 \u2192 TO CHOOSE');
   const touchMode = () => document.documentElement.classList.contains('touch');
   const padMode = () => document.documentElement.classList.contains('pad');   // a controller or TV remote (js/pad.js)
   const remoteMode = () => document.documentElement.classList.contains('remote');   // a TV remote alone
@@ -371,7 +418,7 @@
   if (GOD) {
     window.cd = {
       get state() { return state; }, get ship() { return ship; }, get world() { return world; }, get market() { return market; },
-      get hangar() { return hangar; }, profile, input, start, openHangar, openMarket, tap,
+      get hangar() { return hangar; }, profile, stages, input, start, openHangar, openMarket, tap, pickStage, leaveMarket,
       step(n = 1) { for (let i = 0; i < n; i++) step(); alpha = 1; render(); },
       key: code => window.dispatchEvent(new KeyboardEvent('keydown', { code })),
       get quality() { return quality; },

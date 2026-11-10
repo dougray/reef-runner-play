@@ -1,7 +1,7 @@
 {
   "name": "Jolly Rogue",
   "short_name": "Jolly Rogue",
-  "description": "A pirate run-and-gun: fight four rival crews and their bosses, grab gold, dress your pirate. Runs entirely on your device.",
+  "description": "A pirate run-and-gun: eight levels, eight rival crews and their bosses. Grab gold, dress your pirate. Runs entirely on your device.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

@@ -28,7 +28,13 @@
 
   // Rival crews: one color scheme per area, made by turning the hue (and saturation, lightness) of
   // colored pixels. Grays, the ink outline and whites stay as they are. Pure.
-  JR.CREWS = { british: null, spanish: { hue: -40, sat: 1.1, light: 1 }, french: { hue: 115, sat: 0.85, light: 1 }, dutch: { hue: 215, sat: 0.45, light: 0.8 } };
+  JR.CREWS = {
+    british: null, spanish: { hue: -40, sat: 1.1, light: 1 }, french: { hue: 115, sat: 0.85, light: 1 }, dutch: { hue: 215, sat: 0.45, light: 0.8 },
+    // The voyage update's crews (and their bosses): moss green, drowned sea-glass, cinder, navy blue.
+    mossback: { hue: 75, sat: 0.75, light: 0.8 }, drowned: { hue: 160, sat: 0.45, light: 1.05 },
+    cinder: { hue: -15, sat: 1.25, light: 0.85 }, navy: { hue: 190, sat: 0.9, light: 0.75 },
+    pepper: { hue: -145, sat: 1.2, light: 0.95 }, admiral: { hue: 60, sat: 0.9, light: 0.72 },   // the cucumber turned red, a navy-blue whale
+  };
   JR.crewPixels = (data, nation) => {
     const out = Uint8ClampedArray.from(data), c = JR.CREWS[nation];
     if (!c) return out;
@@ -41,7 +47,7 @@
       let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
       h = (h * 60 + c.hue + 720) % 360;
       s = Math.min(1, s * c.sat);
-      const L = l * c.light, C = (1 - Math.abs(2 * L - 1)) * s, X = C * (1 - Math.abs(((h / 60) % 2) - 1)), m = L - C / 2;
+      const L = Math.min(1, l * c.light), C = (1 - Math.abs(2 * L - 1)) * s, X = C * (1 - Math.abs(((h / 60) % 2) - 1)), m = L - C / 2;
       const [R, G, B] = h < 60 ? [C, X, 0] : h < 120 ? [X, C, 0] : h < 180 ? [0, C, X] : h < 240 ? [0, X, C] : h < 300 ? [X, 0, C] : [C, 0, X];
       out[o] = Math.round((R + m) * 255); out[o + 1] = Math.round((G + m) * 255); out[o + 2] = Math.round((B + m) * 255);
     }

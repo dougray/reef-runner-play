@@ -50,6 +50,6 @@
 
   JR.inMeleeRange = (p, enemies, w) => {
     const box = JR.meleeBox(p, w);
-    return enemies.some(e => e.hp > 0 && JR.overlap(box, e));
+    return enemies.some(e => e.hp > 0 && !e.phased && JR.overlap(box, e));
   };
 })();

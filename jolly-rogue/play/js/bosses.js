@@ -10,6 +10,12 @@
     spanish: { name: 'THE CAPTAIN', hp: 45, art: 'pbCaptain', w: 30, h: 52, attacks: ['lunge', 'daggers', 'leap'], item: 'rapier' },
     french: { name: 'CUCUMBER', hp: 50, art: 'cucumber', w: 30, h: 52, attacks: ['mortar', 'grapeshot', 'kegs'], item: 'bomb' },
     dutch: { name: 'THE WHALE', hp: 60, art: 'whale', w: 52, h: 40, attacks: ['blast', 'pound', 'charge'], item: 'blunderbuss' },
+    // The voyage update's four: the pack's bosses again, recolored for their crew (`crew`, see
+    // JR.CREWS in js/atlas.js), each with a new attack of its own.
+    mossback: { name: 'THE TEMPLE BRUTE', hp: 50, art: 'bigGuy', crew: 'mossback', w: 30, h: 52, attacks: ['boulders', 'leap', 'summon'], item: 'swivel' },
+    drowned: { name: 'THE DROWNED CAPTAIN', hp: 55, art: 'pbCaptain', crew: 'drowned', ghost: true, w: 30, h: 52, attacks: ['daggers', 'blink', 'lunge'], item: 'rapier' },
+    cinder: { name: 'THE HOT PEPPER', hp: 60, art: 'cucumber', crew: 'pepper', w: 30, h: 52, attacks: ['eruption', 'grapeshot', 'kegs'], item: 'bomb' },
+    navy: { name: 'ADMIRAL BLUBBERTON', hp: 75, art: 'whale', crew: 'admiral', w: 52, h: 40, attacks: ['broadside', 'volley', 'summon'], item: 'blunderbuss' },
   };
 
   const TELL = 0.7, PAUSE = 1.1;
@@ -22,7 +28,7 @@
       hp, maxHp: hp, vx: 0, vy: 0, facing: -1, onGround: false, prop: false,
       ground: groundY, minX, maxX, home: maxX - 70,
       state: 'enter', timer: 0, attack: null, next: 0, force: null,
-      t: 0, flash: 0, fired: 0, tell: false, act: {},
+      t: 0, flash: 0, fired: 0, tell: false, act: {}, fade: 1, phased: false,
     };
   };
 
@@ -168,6 +174,91 @@
       },
     },
   };
+  // The new four's attacks.
+  Object.assign(ATTACKS, {
+    // Two or three stones roll along the ground at you, one after another: jump them.
+    boulders: {
+      start: b => { b.act = { n: angry(b) ? 3 : 2, gap: 0 }; },
+      step: (b, p, w, dt) => {
+        if ((b.act.gap -= dt) > 0) return false;
+        w.shots.push({ x: b.x + b.w / 2 + b.facing * 18, y: b.ground - 7, vx: b.facing * (angry(b) ? 150 : 125), vy: 0, r: 7, life: 4, dmg: 1, friendly: false, boulder: true });
+        emit(w, 'pound', b.x, b.ground);
+        b.fired = 0.25; b.act.gap = 0.75;
+        return --b.act.n <= 0;
+      },
+    },
+    // Fades out (shots pass through), reappears on your other side, and throws daggers.
+    blink: {
+      start: (b, p, w) => { b.act = { phase: 'out', t: 0.45 }; emit(w, 'blink', b.x, b.y); },
+      step: (b, p, w, dt) => {
+        b.vx = 0;
+        const a = b.act;
+        a.t -= dt;
+        if (a.phase === 'out') {
+          b.fade = Math.max(0, a.t / 0.45); b.phased = b.fade < 0.5;
+          if (a.t <= 0) {
+            const px = p.x + p.w / 2, mid = (b.minX + b.maxX) / 2;
+            const x = px < mid ? px + 70 : px - 70 - b.w;   // the side with more room
+            b.x = JR.clamp(x, b.minX, b.maxX - b.w);
+            b.facing = p.x + p.w / 2 < b.x + b.w / 2 ? -1 : 1;
+            a.phase = 'in'; a.t = 0.35;
+          }
+          return false;
+        }
+        b.fade = Math.min(1, 1 - a.t / 0.35); b.phased = b.fade < 0.5;
+        if (a.t > 0) return false;
+        b.fade = 1; b.phased = false;
+        fan(w, gun(b), p, angry(b) ? 3 : 2, 0.15, 170, { dagger: true });
+        emit(w, 'throw', b.x, b.y);
+        b.fired = 0.25;
+        return true;
+      },
+    },
+    // Lava rocks rain down round you; each one's landing spot glows first.
+    eruption: {
+      start: (b, p, w) => {
+        const n = angry(b) ? 6 : 4, px = p.x + p.w / 2;
+        b.act = { drops: [], wait: 1.5 };
+        for (let i = 0; i < n; i++) {
+          const x = JR.clamp(px + (i - (n - 1) / 2) * 44 + (w.rand() - 0.5) * 16, b.minX + 8, b.maxX - 8);
+          b.act.drops.push({ x, at: 0.45 + i * 0.12 });
+          w.fx.push({ type: 'mark', x, y: b.ground, t: 0.45 + i * 0.12 + 0.45, lava: true });
+        }
+        emit(w, 'erupt', b.x, b.y);
+        b.fired = 0.3;
+      },
+      step: (b, p, w, dt) => {
+        b.vx = 0;
+        const before = 1.5 - b.act.wait;
+        b.act.wait -= dt;
+        const now = 1.5 - b.act.wait;
+        for (const d of b.act.drops) {
+          if (d.at > before && d.at <= now) w.shots.push({ x: d.x, y: JR.CAM_Y - 10, vx: 0, vy: 220, grav: true, r: 4, life: 3, dmg: 1, friendly: false, lava: true, boom: 16 });
+        }
+        return b.act.wait <= 0;
+      },
+    },
+    // A wall of cannonballs from the right: low ones to jump, high ones to duck, both when angry.
+    broadside: {
+      start: (b, p, w) => {
+        const rows = angry(b) ? ['low', 'high'] : [w.rand() < 0.5 ? 'low' : 'high'];
+        b.act = { balls: rows.flatMap(r => [r, r, r]), gap: 0, i: 0 };
+        emit(w, 'whistle', b.x, b.y);
+      },
+      step: (b, p, w, dt) => {
+        if ((b.act.gap -= dt) > 0) return false;
+        const row = b.act.balls[b.act.i++], last = b.act.i >= b.act.balls.length;
+        // Low: 6 px off the deck (jump it). High: 19 px up, the height a crouch ducks under.
+        const y = b.ground - (row === 'low' ? 6 : 19);
+        w.shots.push({ x: b.maxX + 8, y, vx: -150, vy: 0, dmg: 1, life: 5, friendly: false, r: 4.5, ball: true });
+        emit(w, 'cannon', b.maxX, y);
+        b.fired = 0.3;
+        b.act.gap = b.act.balls[b.act.i] === row ? 0.2 : 0.8;   // a stream of three, then the next row
+        return last;
+      },
+    },
+  });
+
   JR.updateBoss = (b, p, lv, w, dt) => {
     b.t += dt;
     b.flash = Math.max(0, b.flash - dt);

@@ -85,11 +85,13 @@
     pr.fresh = false;
   };
 
-  // The voyage ends with the last area's boss (the Pirate Ship). Each finished voyage pays a
-  // captain's share that grows every time round, and the save counts them.
+  // The voyage ends with the last level's boss (the Admiral's Flagship). Each finished voyage pays a
+  // captain's share that grows every time round, and the save counts them. A first voyage started
+  // from a checkpoint (`startLevel`) pays only the share of it that was sailed (JR.voyageShare).
   JR.voyageEnds = seg => seg % JR.BIOMES.length === JR.BIOMES.length - 1;
-  JR.finishVoyage = (pr, p, seg) => {
-    const voyage = Math.floor(seg / JR.BIOMES.length) + 1, bonus = 250 * voyage;
+  JR.finishVoyage = (pr, p, seg, startLevel = 0) => {
+    const voyage = Math.floor(seg / JR.BIOMES.length) + 1;
+    const bonus = JR.voyageShare ? JR.voyageShare(voyage, voyage === 1 ? startLevel : 0) : 250 * voyage;
     JR.addGold(p, bonus);
     pr.voyages = Math.max(pr.voyages || 0, voyage);
     return { voyage, bonus };

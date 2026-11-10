@@ -4,9 +4,11 @@
   const CD = window.CD;
   const emit = (w, name, x, y) => w.events.push({ name, x, y });
 
-  CD.makeWorld = seed => ({
+  // `start`: the stage to set sail from (a checkpoint); the sky is exactly as if flown there.
+  CD.makeWorld = (seed, start = 0) => ({
     rand: CD.rng(seed), shots: [], enemies: [], pickups: [], fx: [], events: [], clouds: [], bolts: [], hazards: [],
-    wings: [], score: 0, gold: 0, distance: 0, spawnTimer: 1.2, wave: 0, t: 0, boss: null, nextBoss: CD.AREA_LEN - 60,
+    falls: [], curtains: [], wings: [], score: 0, gold: 0, distance: CD.areaStart(start), spawnTimer: 1.2, wave: 0, t: 0,
+    boss: null, nextBoss: CD.areaStart(start) + CD.AREA_LEN - 60, startArea: CD.areaAt(CD.areaStart(start)).index,
   });
 
   CD.hurt = (s, w) => {
@@ -32,7 +34,9 @@
     w.score += d.score;
     emit(w, 'kill', e.x, e.y);
     if (d.blast) { CD.explode(w, s, cx, cy, d.blast); return; }
-    w.fx.push({ type: 'boom', x: cx, y: cy, t: 0.45, r: Math.max(14, e.w * 0.4) });
+    if (d.shards) CD.shatter(w, cx, cy, d.shards);
+    else w.fx.push({ type: 'boom', x: cx, y: cy, t: 0.45, r: Math.max(14, e.w * 0.4) });
+    if (d.chest) drop(w, 'chest', cx, cy - 8);
     if (d.drops === 'weapon') drop(w, 'weapon', cx, cy, { gun: CD.PICKUP_GUNS[Math.floor(w.rand() * CD.PICKUP_GUNS.length)] });
     // Gold by size: a gyrocopter drops a coin, a zeppelin bursts into three. Sometimes a chest too.
     for (let i = 0; i < (d.gold || 1); i++) drop(w, 'gold', cx + (i - (d.gold - 1) / 2) * 7, cy + (i % 2) * 5, { vy: -20 - (i % 3) * 12 });
@@ -53,7 +57,7 @@
       w.gold += CD.CHEST_GOLD; w.score += 50;
       if (Math.floor(w.gold / CD.LIFE_GOLD) > Math.floor(before / CD.LIFE_GOLD)) { s.lives += 1; emit(w, 'extraLife', s.x, s.y); }
     }
-    else if (k.type === 'coal') s.steam = Math.min(s.steamMax, s.steam + 40);
+    else if (k.type === 'coal') { s.steam = Math.min(s.steamMax, s.steam + 40); s.ice = 0; }   // a hot boiler thaws the ice too
     else if (k.type === 'repair') s.hearts = Math.min(s.maxHearts, s.hearts + 1);
     else if (k.type === 'weapon') { s.weapon = k.gun; s.weaponT = CD.WEAPON_TIME; }
     emit(w, k.type === 'gold' || k.type === 'chest' ? 'coin' : 'pickup', k.x || 0, k.y || 0);
@@ -125,7 +129,7 @@
         }
       } else if (CD.overlap(box, hitbox(s))) {
         b.life = 0;
-        CD.hurt(s, w);
+        if (CD.hurt(s, w) && b.frost) s.ice = Math.min(1, (s.ice || 0) + 0.34);   // the Icebreaker's frost ices the rigging
       }
     }
     for (const e of w.enemies) {
@@ -218,6 +222,7 @@
     CD.updateWingman(w, s, dt);
 
     if (!w.boss) { w.spawnTimer -= dt; if (w.spawnTimer <= 0) CD.spawnWave(w, s); }
+    CD.updateSetPiece(w, s);
 
     CD.updateWeather(w, s, dt);
     if (w.boss) CD.updateBoss(w, s, dt);

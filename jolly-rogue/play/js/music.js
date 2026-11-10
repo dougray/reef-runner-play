@@ -39,6 +39,30 @@
       bass: 'D3 . . A2 . . | C3 . . G2 . . | D3 . . A2 . . | D3 . . . . .',
       drums: 'k..h..s..h..',
     },
+    jungle: {                                                 // Skull Isle Ruins: drums in the rain
+      bpm: 126,
+      lead: 'E4 - G4 A4 B4 - A4 G4 | E4 - D4 E4 G4 - . . | A4 - B4 D5 B4 - A4 G4 | E4 - - - E4 G4 E4 D4',
+      bass: 'E2 . E2 B2 E2 . E2 B2 | D2 . D2 A2 D2 . D2 A2 | A2 . A2 E3 A2 . A2 E3 | E2 . E2 B2 E2 . . .',
+      drums: 'k.kss.k.k.kss.kh',
+    },
+    ghost: {                                                  // The Ghost Ship: slow, a little wrong
+      bpm: 100,
+      lead: 'A4 - - C5 B4 - G#4 - | A4 - E4 - F4 - E4 - | D4 - F4 A4 G#4 - B4 - | A4 - - - . . . .',
+      bass: 'A2 . . . E3 . . . | F2 . . . E2 . . . | D2 . . . E2 . . . | A2 . . . A2 . . .',
+      drums: 'k...h...s...h...',
+    },
+    volcano: {                                                // Volcanic Cove: driving, Phrygian
+      bpm: 156,
+      lead: 'E4 F4 E4 B3 E4 F4 G4 F4 | E4 F4 E4 C4 D4 - C4 B3 | E4 F4 E4 B3 E4 G4 A4 G4 | F4 E4 F4 G4 E4 - . .',
+      bass: 'E2 E2 E3 E2 E2 E2 E3 E2 | C2 C2 C3 C2 D2 D2 D3 D2 | E2 E2 E3 E2 E2 E2 E3 E2 | F2 F2 F3 F2 E2 E2 . .',
+      drums: 'k.s.kks.k.s.kkss',
+    },
+    navy: {                                                   // Admiral's Flagship: a march
+      bpm: 132,
+      lead: 'C4 - E4 G4 C5 - G4 E4 | F4 - A4 C5 A4 - F4 - | G4 - B4 D5 G4 - F4 E4 | D4 - G4 - C4 - . .',
+      bass: 'C3 . G2 . C3 . G2 . | F2 . C3 . F2 . C3 . | G2 . D3 . G2 . D3 . | G2 . G2 . C3 . . .',
+      drums: 'k.s.k.s.kks.k.ss',
+    },
     boss: {
       bpm: 168,
       lead: 'D4 D4 F4 D4 G4 D4 F4 E4 | D4 D4 F4 D4 A4 G4 F4 E4 | Bb3 Bb3 D4 Bb3 F4 Bb3 D4 C4 | A3 A3 C#4 A3 E4 - A4 -',

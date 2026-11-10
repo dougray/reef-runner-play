@@ -54,6 +54,11 @@
     ram: () => { noise(0.3, 0.3, 'lowpass', 700, 100); tone(70, 0.3, 'triangle', 0.2); },
     extraLife: () => [523, 659, 784].forEach((f, i) => setTimeout(() => ac && tone(f, 0.15, 'square', 0.08), i * 90)),
     coin: () => { tone(988, 0.06, 'square', 0.07); setTimeout(() => ac && tone(1318, 0.12, 'square', 0.07), 60); },
+    spotted: () => { tone(1480, 0.09, 'square', 0.05); setTimeout(() => ac && tone(1480, 0.09, 'square', 0.05), 140); },
+    thaw: () => noise(0.3, 0.12, 'highpass', 3000, 1200),
+    shatter: () => { noise(0.25, 0.15, 'highpass', 4000, 1500); tone(1900, 0.12, 'triangle', 0.05, 900); },
+    setPiece: () => [392, 523, 659].forEach((f, i) => setTimeout(() => ac && tone(f, 0.12, 'triangle', 0.08), i * 80)),
+    checkpoint: () => [523, 784, 1047].forEach((f, i) => setTimeout(() => ac && tone(f, 0.14, 'square', 0.07), i * 110)),
   };
   // The mute button shows (and tells a screen reader) whether sound is off.
   function showMute() {
