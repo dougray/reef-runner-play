@@ -84,6 +84,15 @@
     spike() { tone(260, 0.12, 'square', 0.08, 120); },
     sizzle() { noise(0.35, 0.25, 'highpass', 3000, 6000); },
     checkpoint() { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, 0.1, 'square', 0.07, null, i * 0.07)); },
+    // The King's navy and the far shores.
+    flap() { noise(0.25, 0.2, 'bandpass', 500, 1400); },
+    gust() { noise(0.9, 0.12, 'bandpass', 400, 1200); },
+    wave() { noise(0.7, 0.18, 'lowpass', 1200, 200); },
+    swivel() { noise(0.15, 0.25, 'lowpass', 1600, 300); tone(160, 0.08, 'triangle', 0.15, 60); },
+    pinch() { tone(1200, 0.04, 'square', 0.05); tone(1000, 0.04, 'square', 0.05, null, 0.06); },
+    creak() { tone(140, 0.3, 'sawtooth', 0.05, 110); },
+    // Rope swings: a creak when you catch hold.
+    grab() { tone(180, 0.08, 'triangle', 0.08, 120); noise(0.06, 0.08, 'bandpass', 700); },
     gameover() { [330, 311, 294, 262].forEach((f, i) => tone(f, 0.3, 'triangle', 0.16, null, i * 0.25)); },
   };
 

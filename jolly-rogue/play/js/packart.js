@@ -156,6 +156,9 @@
     n: { anim: 'cannon', left: true, states: ['idle', 'fire', 'fireFx'] },
     c: { anim: 'box', states: ['idle', 'hit'] },
     $: { anim: 'chest', states: ['idle'] },
+    i: { anim: 'fierceTooth', states: CREW },                // redcoat
+    h: { anim: 'crabby', states: CREW },                     // boarder (on his rope until he lands)
+    u: { anim: 'cannon', scale: 0.6, left: true, states: ['idle', 'fire', 'fireFx'] },   // swivel gun
   };
   const BOSS_STATES = ['idle', 'run', 'jump', 'fall', 'attack', 'hit', 'deadHit', 'deadGround'];
 

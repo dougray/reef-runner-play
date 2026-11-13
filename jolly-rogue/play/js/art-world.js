@@ -53,7 +53,7 @@
       g.globalCompositeOperation = 'source-atop';
       g.fillStyle = lvl.terrain.tint; g.fillRect(0, 0, f.w, f.h);
       g.globalCompositeOperation = 'source-over';
-      tinted[biome] = { set, f: { x: 0, y: 0 }, img: c };
+      tinted[biome] = { set, f: { x: 0, y: 0 }, img: c, style: lvl.terrain };
     }
     return tinted[biome];
   }
@@ -68,7 +68,8 @@
     const T = JR.TILE, c0 = Math.floor(camX / T) - 1, c1 = c0 + Math.ceil(W() / T) + 2;
     const plat = A().frameAt('ship.platforms', 0);
     for (let c = c0; c <= c1; c++) {
-      const biome = lv.biomeAt(Math.max(0, c)), { set, f, img } = terrainFor(biome);
+      const biome = lv.biomeAt(Math.max(0, c)), { set, f, img, style } = terrainFor(biome);
+      const seas = style && (style.fill || style.top || style.plat) && JR.areaArt && JR.areaArt.terrain;   // js/art-seas.js
       for (let r = 3; r < JR.ROWS; r++) {
         const tile = lv.tile(c, r), x = c * T, y = r * T;
         if (tile === '#') {
@@ -76,8 +77,11 @@
           blit(ctx, f.x + set.ox + qx * set.q, f.y + set.oy + qy * set.q, set.q, set.q, x, y, T, T, img);
           const n = notch && set.notch && set.notch[notch];
           if (n) blit(ctx, f.x + n[0], f.y + n[1], 16, 16, x, y, T, T, img);
+          if (seas) seas.solid(ctx, lv, c, r, x, y, t, style);
         } else if (tile === '^' || tile === '~') {
           if (JR.areaArt) JR.areaArt.drawHazardTile(ctx, lv, c, r, x, y, t, biome);
+        } else if (tile === '=' && seas && style.plat) {
+          seas.plat(ctx, lv, c, r, x, y, t, style);
         } else if (tile === '=') {
           const l = lv.platform(c - 1, r), rr = lv.platform(c + 1, r);
           const sx = !l ? 32 : !rr ? 112 : 48 + mod(c, 4) * 16;

@@ -34,6 +34,19 @@
     mossback: { hue: 75, sat: 0.75, light: 0.8 }, drowned: { hue: 160, sat: 0.45, light: 1.05 },
     cinder: { hue: -15, sat: 1.25, light: 0.85 }, navy: { hue: 190, sat: 0.9, light: 0.75 },
     pepper: { hue: -145, sat: 1.2, light: 0.95 }, admiral: { hue: 60, sat: 0.9, light: 0.72 },   // the cucumber turned red, a navy-blue whale
+    // The King's navy and the far shores: crews, then their bosses.
+    topmen: { hue: 200, sat: 0.7, light: 0.95 }, shellbacks: { hue: -30, sat: 1.2, light: 1.08 },
+    marines: { hue: -28, sat: 1.35, light: 0.8 }, howlers: { hue: 40, sat: 0.9, light: 0.7 },
+    bosun: { hue: 170, sat: 0.6, light: 0.9 }, kingcrab: { hue: -100, sat: 1.4, light: 1.0 },
+    starchley: { hue: 140, sat: 1.1, light: 1.1 }, canopy: { hue: 90, sat: 0.8, light: 0.8 },
+    wreckers: { hue: 120, sat: 0.4, light: 0.95 }, smugglers: { hue: 250, sat: 0.6, light: 0.65 },
+    dockwatch: { hue: 20, sat: 0.5, light: 0.75 }, garrison: { hue: -40, sat: 1.0, light: 0.7 },
+    gullqueen: { hue: 180, sat: 0.5, light: 1.15 }, greasepot: { hue: 30, sat: 0.7, light: 0.6 },
+    foreman: { hue: 30, sat: 1.1, light: 0.9 }, brassbutton: { hue: -150, sat: 1.2, light: 0.95 },
+    stormwatch: { hue: 160, sat: 0.35, light: 0.8 }, bullion: { hue: 15, sat: 1.4, light: 1.05 },
+    picket: { hue: 220, sat: 0.8, light: 0.6 }, royal: { hue: -20, sat: 1.5, light: 0.85 },
+    squall: { hue: 200, sat: 0.5, light: 0.75 }, paymaster: { hue: -120, sat: 1.3, light: 1.1 },
+    commodore: { hue: 100, sat: 0.6, light: 0.65 }, stormhaven: { hue: 40, sat: 1.2, light: 0.8 },
   };
   JR.crewPixels = (data, nation) => {
     const out = Uint8ClampedArray.from(data), c = JR.CREWS[nation];

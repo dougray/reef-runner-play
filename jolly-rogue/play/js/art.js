@@ -16,6 +16,19 @@
   art.drawTiles = (ctx, lv, camX, t) => JR.artWorld.drawTiles(ctx, lv, camX, t);
   art.drawWeather = (ctx, camX, t, biome, calm) => JR.areaArt && JR.areaArt.weather(ctx, camX, t, biome, calm);
   art.drawHazard = (ctx, h, t) => JR.areaArt && JR.areaArt.drawHazard(ctx, h, t);
+  // A rope (twisted hemp, a knot at the end) or a jungle vine (leaves along it), down from its anchor.
+  art.drawRope = (ctx, r, t) => {
+    const vine = r.kind === 'vine', n = Math.ceil(r.len / 3);
+    const c1 = vine ? '#2f7a3a' : '#a8804c', c2 = vine ? '#1d5a2c' : '#6c4c2c';
+    ctx.fillStyle = vine ? '#14301c' : '#3c2818'; ctx.fillRect(px.snap(r.ax - 3), px.snap(r.ay - 2), 6, 3);   // the block / branch
+    for (let i = 0; i <= n; i++) {
+      const p = JR.ropePoint(r, (i / n) * r.len);
+      ctx.fillStyle = i % 2 ? c1 : c2; ctx.fillRect(px.snap(p.x - 1), px.snap(p.y - 1), 2, 3);
+      if (vine && i % 5 === 3) { ctx.fillStyle = '#3c9a44'; ctx.fillRect(px.snap(p.x + (i % 2 ? 1 : -4)), px.snap(p.y), 3, 2); }
+    }
+    const end = JR.ropePoint(r, r.len);
+    ctx.fillStyle = vine ? '#3c9a44' : '#c8a070'; ctx.fillRect(px.snap(end.x - 2), px.snap(end.y), 4, 3);
+  };
 
   // ---------- the cast (Pixel Frog's packs via js/atlas.js; guns and pets from js/packart.js) ----------
 
@@ -38,6 +51,7 @@
         anim = 'captain.' + (p.strike || 'attack1'); gun = false;
         at = Math.min(0.999, 1 - p.slash / 0.18) * A.frames(anim) / A.data.anims[anim].fps;
       } else if (p.hurtAt != null && p.clock - p.hurtAt < 0.25) anim = 'captain.hit', at = p.clock - p.hurtAt;
+      else if (p.rope) anim = 'captain.jump';
       else if (!p.onGround) anim = p.vy < 0 ? 'captain.jump' : 'captain.fall';
       else anim = Math.abs(p.vx) > 8 ? 'captain.run' : 'captain.idle', at = Math.abs(p.vx) > 8 ? p.runT : t;
       const i = A.index(anim, at, !/\.(attack\d|air\d|hit)$/.test(anim));
@@ -90,22 +104,25 @@
     if (e.type === 'B') return art.drawBoss(ctx, e, x, y, t);
     if (JR.areaArt && JR.areaArt.drawEnemy(ctx, e, x, y, t)) return;   // bats and powder kegs
     const c = PA().CAST[e.type];
-    const opts = { flip: c.left ? e.facing > 0 : e.facing < 0, white: e.flash > 0, crew: e.prop || e.type === 'n' ? null : e.nation, scale: c.scale };
+    const opts = { flip: c.left ? e.facing > 0 : e.facing < 0, white: e.flash > 0, crew: e.prop || e.type === 'n' || e.type === 'u' ? null : e.nation, scale: c.scale };
     let pose = 'idle', at = e.t;
     if (e.type === 'c') pose = e.flash > 0 ? 'hit' : 'idle';
-    else if (e.type === 'n' || e.type === 's') {
+    else if (e.type === 'n' || e.type === 's' || e.type === 'u') {
       if (e.fired > 0) pose = 'fire', at = 0.25 - e.fired, opts.loop = false;
     } else if (e.tell) pose = e.type === 'f' ? 'idle' : 'anticipation';
     else if (e.fired > 0) pose = 'attack', at = 0.25 - e.fired;
     else if (Math.abs(e.vx) > 1) pose = 'run';
     if (e.type === 'g') opts.alpha = 0.15 + 0.7 * (e.fade == null ? 1 : e.fade);   // drowned sailors fade in and out
+    if (e.type === 'h' && e.swing !== 'off' && JR.areaArt.drawSwingRope) JR.areaArt.drawSwingRope(ctx, e, x, y);
     A.draw(ctx, `${c.anim}.${pose}`, at, x, y, opts);
+    if (e.type === 'i' && JR.areaArt.drawRedcoat) JR.areaArt.drawRedcoat(ctx, e, x, y, t);
     if (e.tell) tell(ctx, x, y - e.h - 16, t);
   };
 
   // Knocked down: the dead-hit tumble in the air, then flat on the ground, blinking out.
   art.drawCorpse = (ctx, k, x, y) => {
     if (!A.ready || blink(k.age, k.boss ? 1.6 : 0.55)) return;
+    if (k.type === 'l' && JR.areaArt.drawCrab) { JR.areaArt.drawCrab(ctx, k, x, y, 0, true); return; }
     if (k.type === 'v') { const img = JR.areaArt.sprite.bat(0); px.draw(ctx, img, x, y - 4, img.width / 2, img.height / 2, false, Math.PI); return; }
     const c = k.boss ? { anim: JR.BOSSES[k.nation].art } : PA().CAST[k.type] || PA().CAST.d;
     const opts = { flip: k.boss || c.left ? k.facing > 0 : k.facing < 0, white: k.age < 0.07, crew: k.boss ? JR.BOSSES[k.nation].crew || null : k.nation, scale: c.scale, loop: false };

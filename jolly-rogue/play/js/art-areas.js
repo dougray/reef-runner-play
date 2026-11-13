@@ -149,9 +149,10 @@
     const lvl = JR.levelOf && JR.levelOf(biome);
     if (!lvl || !lvl.look) return false;
     const L = lvl.look;
-    if (!JR.artWorld.painted(ctx, camX, L.base)) rect(ctx, '#20283a', 0, 0, W(), H());
+    if (Array.isArray(L.sky)) JR.areaArt.codeSky(ctx, L.sky);        // a sky painted in code (js/art-seas.js)
+    else if (!JR.artWorld.painted(ctx, camX, L.base)) rect(ctx, '#20283a', 0, 0, W(), H());
     rect(ctx, L.tint, 0, 0, W(), H());
-    if (L.sky) for (let i = 0; i < 4; i++) { ctx.globalAlpha = 0.18; rect(ctx, L.sky, 0, 0, W(), 20 + i * 22); }   // a heavier sky
+    if (L.sky && !Array.isArray(L.sky)) for (let i = 0; i < 4; i++) { ctx.globalAlpha = 0.18; rect(ctx, L.sky, 0, 0, W(), 20 + i * 22); }   // a heavier sky
     ctx.globalAlpha = 1;
     LAYERS[L.layer](ctx, camX, t);
     return true;

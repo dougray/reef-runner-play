@@ -16,6 +16,21 @@
     drowned: { name: 'THE DROWNED CAPTAIN', hp: 55, art: 'pbCaptain', crew: 'drowned', ghost: true, w: 30, h: 52, attacks: ['daggers', 'blink', 'lunge'], item: 'rapier' },
     cinder: { name: 'THE HOT PEPPER', hp: 60, art: 'cucumber', crew: 'pepper', w: 30, h: 52, attacks: ['eruption', 'grapeshot', 'kegs'], item: 'bomb' },
     navy: { name: 'ADMIRAL BLUBBERTON', hp: 75, art: 'whale', crew: 'admiral', w: 52, h: 40, attacks: ['broadside', 'volley', 'summon'], item: 'blunderbuss' },
+    // The King's navy and the far shores (levels 9-20): the pack's five bosses (the bald officer
+    // grown to full size too), each recolored for its crew, with attacks of their own.
+    topmen: { name: 'BOSUN HALYARD', hp: 60, art: 'bigGuy', crew: 'bosun', w: 30, h: 52, attacks: ['sails', 'volley', 'swingers'], item: 'swivel' },
+    shellbacks: { name: 'THE KING CRAB', hp: 62, art: 'whale', crew: 'kingcrab', w: 52, h: 40, attacks: ['charge', 'crabs', 'tide'], item: 'blunderbuss' },
+    marines: { name: 'CAPTAIN STARCHLEY', hp: 64, art: 'pbCaptain', crew: 'starchley', w: 30, h: 52, attacks: ['lunge', 'redcoats', 'chainshot'], item: 'rapier' },
+    howlers: { name: 'THE CANOPY KING', hp: 66, art: 'bald', crew: 'canopy', w: 30, h: 52, attacks: ['coconuts', 'leap', 'swingers'], item: 'bomb' },
+    wreckers: { name: 'THE WRECKER QUEEN', hp: 68, art: 'cucumber', crew: 'gullqueen', w: 30, h: 52, attacks: ['rockfall', 'gust', 'daggers'], item: 'rapier' },
+    smugglers: { name: 'OLD GREASEPOT', hp: 70, art: 'bigGuy', crew: 'greasepot', w: 30, h: 52, attacks: ['kegs', 'stalactites', 'mortar'], item: 'bomb' },
+    dockwatch: { name: 'THE FOREMAN', hp: 72, art: 'whale', crew: 'foreman', w: 52, h: 40, attacks: ['crates', 'charge', 'redcoats'], item: 'blunderbuss' },
+    garrison: { name: 'COLONEL BRASSBUTTON', hp: 74, art: 'pbCaptain', crew: 'brassbutton', w: 30, h: 52, attacks: ['broadside', 'swivels', 'redcoats'], item: 'swivel' },
+    stormwatch: { name: 'THE SQUALL CAPTAIN', hp: 78, art: 'bald', crew: 'squall', w: 30, h: 52, attacks: ['sails', 'gust', 'chainshot'], item: 'rapier' },
+    bullion: { name: 'THE PAYMASTER', hp: 80, art: 'cucumber', crew: 'paymaster', w: 30, h: 52, attacks: ['coinshot', 'kegs', 'volley'], item: 'bomb' },
+    picket: { name: 'THE COMMODORE', hp: 84, art: 'whale', crew: 'commodore', w: 52, h: 40, attacks: ['broadside', 'swingers', 'mortar'], item: 'blunderbuss' },
+    // The finale: four attacks, the most health, and every trick the King's navy has.
+    royal: { name: 'LORD ADMIRAL STORMHAVEN', hp: 110, art: 'bigGuy', crew: 'stormhaven', w: 30, h: 52, attacks: ['broadside', 'sails', 'redcoats', 'chainshot', 'swingers'], item: 'swivel', finale: true },
   };
 
   const TELL = 0.7, PAUSE = 1.1;
@@ -255,6 +270,172 @@
         b.fired = 0.3;
         b.act.gap = b.act.balls[b.act.i] === row ? 0.2 : 0.8;   // a stream of three, then the next row
         return last;
+      },
+    },
+  });
+
+  // The King's navy's attacks.
+  const drop = (w, b, type, x, n = 0) => {
+    const e = JR.makeEnemy(type, x, b.ground - JR.ENEMY_DEFS[type].h - 90, b.nation);
+    e.active = true; e.timer = 1.4 + n * 0.5;
+    w.enemies.push(e);
+    return e;
+  };
+  Object.assign(ATTACKS, {
+    // Two loose sails blow across the arena from the right: one low (jump), one high (duck).
+    sails: {
+      start: (b, p, w) => {
+        const rows = angry(b) ? ['low', 'high', 'low'] : w.rand() < 0.5 ? ['low', 'high'] : ['high', 'low'];
+        b.act = { rows, i: 0, gap: 0 };
+        emit(w, 'gust', b.x, b.y);
+      },
+      step: (b, p, w, dt) => {
+        if ((b.act.gap -= dt) > 0) return false;
+        const row = b.act.rows[b.act.i++];
+        // Low: its bottom on the deck, 12 px tall (jump it). High: 18 px off the deck (a crouch is 14).
+        const y = b.ground - (row === 'low' ? 6 : 30);
+        w.shots.push({ x: b.maxX + 12, y, vx: -125, vy: 0, r: row === 'low' ? 6 : 11, life: 5, dmg: 1, friendly: false, sail: true, low: row === 'low' });
+        emit(w, 'flap', b.maxX, y);
+        b.fired = 0.3; b.act.gap = 0.9;
+        return b.act.i >= b.act.rows.length;
+      },
+    },
+    // Boarders swing in on ropes from above the arena, then charge.
+    swingers: {
+      start: (b, p, w) => {
+        const n = w.enemies.filter(e => e.type === 'h' && e.hp > 0).length;
+        for (let i = n; i < (angry(b) ? 3 : 2); i++) {
+          const e = JR.makeEnemy('h', b.maxX - 30 - i * 56, b.ground - 168, b.nation);
+          e.active = true; e.swing = 'on'; e.omega = 0;
+          w.enemies.push(e);
+        }
+        emit(w, 'whistle', b.x, b.y);
+        b.act = { wait: 0.6 };
+      },
+      step: (b, p, w, dt) => (b.act.wait -= dt) <= 0,
+    },
+    // Crabs scuttle in from the right.
+    crabs: {
+      start: (b, p, w) => {
+        const n = w.enemies.filter(e => e.type === 'l' && e.hp > 0).length;
+        for (let i = n; i < (angry(b) ? 4 : 3); i++) {
+          const e = JR.makeEnemy('l', b.maxX - 12 - i * 22, b.ground - 9, b.nation);
+          e.active = true; e.timer = 0.6 + i * 0.3;
+          w.enemies.push(e);
+        }
+        emit(w, 'pinch', b.x, b.y);
+        b.act = { wait: 0.5 };
+      },
+      step: (b, p, w, dt) => (b.act.wait -= dt) <= 0,
+    },
+    // Waves roll in along the sand from the right, one after another: jump each.
+    tide: {
+      start: (b, p, w) => { b.act = { n: angry(b) ? 3 : 2, gap: 0 }; },
+      step: (b, p, w, dt) => {
+        if ((b.act.gap -= dt) > 0) return false;
+        w.shots.push({ x: b.maxX + 8, y: b.ground - 7, vx: -150, vy: 0, r: 7, life: 4, dmg: 1, friendly: false, tide: true });
+        emit(w, 'wave', b.maxX, b.ground);
+        b.fired = 0.25; b.act.gap = 1.0;
+        return --b.act.n <= 0;
+      },
+    },
+    // Redcoats drop onto the deck and take aim.
+    redcoats: {
+      start: (b, p, w) => {
+        const n = w.enemies.filter(e => e.type === 'i' && e.hp > 0).length;
+        for (let i = n; i < 2; i++) drop(w, b, 'i', b.maxX - 40 - i * 40, i);
+        emit(w, 'whistle', b.x, b.y);
+        b.act = { wait: 0.6 };
+      },
+      step: (b, p, w, dt) => (b.act.wait -= dt) <= 0,
+    },
+    // Chain shot: two balls on a chain, spinning low (jump) or high (duck), two or three of them.
+    chainshot: {
+      start: (b, p, w) => { b.act = { n: angry(b) ? 3 : 2, gap: 0, row: w.rand() < 0.5 ? 0 : 1 }; },
+      step: (b, p, w, dt) => {
+        if ((b.act.gap -= dt) > 0) return false;
+        const high = (b.act.row++ % 2) === 1, g = gun(b);
+        w.shots.push({ x: g.x, y: b.ground - (high ? 22 : 7), vx: b.facing * 160, vy: 0, r: 6, life: 3, dmg: 1, friendly: false, chain: true });
+        w.fx.push({ type: 'smoke', x: g.x, y: g.y, t: 0.4 });
+        emit(w, 'cannon', g.x, g.y);
+        b.fired = 0.3; b.act.gap = 0.7;
+        return --b.act.n <= 0;
+      },
+    },
+    // Coconuts lobbed high to land round you, bursting where they hit.
+    coconuts: {
+      start: (b, p, w) => {
+        const n = angry(b) ? 5 : 3, tx = p.x + p.w / 2, from = { x: b.x + b.w / 2, y: b.y };
+        for (let i = 0; i < n; i++) {
+          const x = JR.clamp(tx + (i - (n - 1) / 2) * 46, b.minX + 8, b.maxX - 8), vy = -360;
+          w.shots.push({ x: from.x, y: from.y, vx: JR.lobVx(from.x, from.y, x, b.ground - 4, vy), vy, dmg: 1, life: 4, friendly: false, grav: true, boom: 16, r: 4, coconut: true });
+          w.fx.push({ type: 'mark', x, y: b.ground, t: 1.0 });
+        }
+        emit(w, 'throw', from.x, from.y);
+        b.fired = 0.3; b.act = { wait: 0.5 };
+      },
+      step: (b, p, w, dt) => (b.act.wait -= dt) <= 0,
+    },
+  });
+
+  // Things dropped from above onto marked spots (rocks off the cliff, stalactites, crates off a crane).
+  const fallers = kind => ({
+    start: (b, p, w) => {
+      const n = angry(b) ? 5 : 3, px = p.x + p.w / 2;
+      b.act = { drops: [], wait: 1.4 };
+      for (let i = 0; i < n; i++) {
+        const x = JR.clamp(px + (i - (n - 1) / 2) * 48 + (w.rand() - 0.5) * 12, b.minX + 8, b.maxX - 8);
+        b.act.drops.push({ x, at: 0.5 + i * 0.14 });
+        w.fx.push({ type: 'mark', x, y: b.ground, t: 0.5 + i * 0.14 + 0.47 });
+      }
+      emit(w, kind === 'crate' ? 'whistle' : 'creak', b.x, b.y);
+      b.fired = 0.3;
+    },
+    step: (b, p, w, dt) => {
+      b.vx = 0;
+      const before = 1.4 - b.act.wait;
+      b.act.wait -= dt;
+      const now = 1.4 - b.act.wait;
+      for (const d of b.act.drops) if (d.at > before && d.at <= now) w.shots.push({ x: d.x, y: JR.CAM_Y - 10, vx: 0, vy: 220, grav: true, r: kind === 'crate' ? 6 : 4, life: 3, dmg: 1, friendly: false, faller: kind, boom: kind === 'crate' ? 18 : 0 });
+      return b.act.wait <= 0;
+    },
+  });
+  Object.assign(ATTACKS, {
+    rockfall: fallers('rock'),
+    stalactites: fallers('stalactite'),
+    crates: fallers('crate'),
+    // A gale across the arena pushes you toward the boss while he throws daggers into it.
+    gust: {
+      start: (b, p, w) => { b.act = { t: 1.6, thrown: false }; emit(w, 'gust', b.x, b.y); },
+      step: (b, p, w, dt) => {
+        b.vx = 0;
+        b.act.t -= dt;
+        if (!p.rope) p.vx += b.facing * -1 * (p.onGround ? 320 : 420) * dt;   // blown toward him
+        if (!b.act.thrown && b.act.t < 0.8) { fan(w, gun(b), p, angry(b) ? 3 : 2, 0.2, 160, { dagger: true }); emit(w, 'throw', b.x, b.y); b.fired = 0.25; b.act.thrown = true; }
+        if (b.act.t <= 0) return true;
+        return false;
+      },
+    },
+    // A fan of gold coins, hot from the strongbox: they hurt, and the ones that miss can be picked up.
+    coinshot: {
+      start: (b, p, w) => {
+        const g = gun(b);
+        fan(w, g, p, angry(b) ? 7 : 5, 0.32, 150, { coinshot: true, r: 2.5 });
+        emit(w, 'cannon', g.x, g.y);
+        b.fired = 0.25; b.act = { wait: 0.35 };
+      },
+      step: (b, p, w, dt) => (b.act.wait -= dt) <= 0,
+    },
+    // Three quick swivel-gun sprays.
+    swivels: {
+      start: b => { b.act = { n: angry(b) ? 4 : 3, gap: 0 }; },
+      step: (b, p, w, dt) => {
+        if ((b.act.gap -= dt) > 0) return false;
+        const g = gun(b);
+        fan(w, g, p, 3, 0.16, 155, { grape: true, r: 2 });
+        emit(w, 'swivel', g.x, g.y);
+        b.fired = 0.15; b.act.gap = 0.45;
+        return --b.act.n <= 0;
       },
     },
   });

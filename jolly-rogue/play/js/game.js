@@ -109,7 +109,7 @@
     level = JR.makeLevel(seed, runStart);
     level.ensure(40);
     world = JR.makeWorld(seed);
-    world.hazards = [];
+    world.hazards = []; world.ropes = [];
     player = JR.makePlayer(48, GROUND_Y - 24);
     JR.applyBuild(player, profile.equip);
     player.god = GOD;
@@ -337,7 +337,8 @@
     const edge = camX + JR.VIEW_W + 32;
     while (nextSpawn < level.spawns.length && level.spawns[nextSpawn].x < edge) {
       const s = level.spawns[nextSpawn++];
-      if (JR.ENEMY_DEFS[s.type]) world.enemies.push(JR.spawnEnemy(s));
+      if (JR.ROPE_TYPES.includes(s.type)) world.ropes.push(JR.makeRope(s, (JR.levelOf(s.biome) || {}).rope || 'rope'));
+      else if (JR.ENEMY_DEFS[s.type]) world.enemies.push(JR.spawnEnemy(s));
       else if (JR.HAZARD_DEFS[s.type]) world.hazards.push(JR.makeHazard(s));
       else world.pickups.push(JR.makePickup(s.type, s.x + 8, s.y + 8));
     }
@@ -381,6 +382,17 @@
 
     for (const e of world.enemies) JR.updateEnemy(e, player, level, world, DT);
     for (const h of world.hazards) JR.updateHazard(h, player, level, world, DT, camX);
+    for (const r of world.ropes) JR.updateRope(r, DT);
+    // Wind in the rigging (js/voyage.js JR.gust): pushes you back, hardest in the air and on a rope.
+    const here = JR.levelOf(level.biomeAt(Math.max(0, Math.floor((player.x + player.w / 2) / JR.TILE))));
+    if (here && here.wind) {
+      const g = JR.gust(t), gp = JR.gust(t - DT);
+      if (g.tell && !gp.tell) sfx.play('gust');
+      if (g.push) {
+        if (player.rope) player.rope.omega += g.push * 2.4 * here.wind * DT;
+        else player.vx += g.push * (player.onGround ? JR.GUST.ground : JR.GUST.air) * here.wind * DT;
+      }
+    }
 
     JR.updateCorpses(world, level, DT);
 
@@ -445,11 +457,13 @@
       }
       announce(`Level ${index + 1}: ${banner.a.toLowerCase()}, ${JR.NATION_NAMES[level.nationAt(c)].toLowerCase()}.${saved}`);
     }
-    // Thunder rolls with the Ghost Ship's lightning.
-    if (level.biomeAt(Math.max(0, Math.floor((camX + JR.VIEW_W / 2) / JR.TILE))) === 'ghost' && JR.lightning(t) === 1 && JR.lightning(t - DT) !== 1) sfx.play('thunder');
+    // Thunder rolls with the Ghost Ship's (and the storm's) lightning.
+    const sky = JR.levelOf(level.biomeAt(Math.max(0, Math.floor((camX + JR.VIEW_W / 2) / JR.TILE))));
+    if (sky && (sky.id === 'ghost' || sky.lightning) && JR.lightning(t) === 1 && JR.lightning(t - DT) !== 1) sfx.play('thunder');
     world.enemies = world.enemies.filter(e => e.hp > 0 && e.x > camX - 64);
     world.pickups = world.pickups.filter(k => k.x > camX - 64 && k.y < JR.WORLD_H + 32);
     world.hazards = world.hazards.filter(h => h.x > camX - 30 * JR.TILE - 64 || h.pending);
+    world.ropes = world.ropes.filter(r => r.held || r.ax > camX - 160);
 
     // Camera: eases forward (never back) and looks a little ahead while running right.
     look += ((player.vx > 10 ? 36 : 0) - look) * Math.min(1, DT * 2.5);
@@ -496,6 +510,7 @@
     ctx.save();
     ctx.translate(-Math.round(cam * scale) / scale, -JR.CAM_Y);
     art.drawTiles(ctx, level, cam, t);
+    for (const r of world.ropes) art.drawRope(ctx, r, t);
     for (const h of world.hazards) art.drawHazard(ctx, h, t);
     for (const k of world.pickups) art.drawPickup(ctx, k, lerp(k, 'x'), lerp(k, 'y'), t);
     for (const k of world.corpses) art.drawCorpse(ctx, k, lerp(k, 'x') + k.w / 2, lerp(k, 'y') + k.h);
@@ -573,7 +588,7 @@
       JR.ui.panel(ctx, 'board', W / 2 - 150, 10, 300, 196);
       if (v.voyage === 1) { say('THE SEVEN SEAS', 32, 2, '#fcc838'); say('ARE YERS!', 52, 2); }
       else { say(`VOYAGE ${v.voyage}`, 32, 2, '#fcc838'); say('COMPLETE!', 52, 2); }
-      say(v.from ? `FROM LEVEL ${v.from + 1}: ${JR.BIOMES.length - v.from} LEVELS, ${JR.BIOMES.length - v.from} BOSSES SUNK.` : 'EIGHT LEVELS. EIGHT BOSSES SUNK.', 76, 1, '#fce4a8');
+      say(v.from ? `FROM LEVEL ${v.from + 1}: ${JR.BIOMES.length - v.from} LEVELS, ${JR.BIOMES.length - v.from} BOSSES SUNK.` : `${JR.BIOMES.length} LEVELS. ${JR.BIOMES.length} BOSSES SUNK.`, 76, 1, '#fce4a8');
       say('EVERY PORT NOW KNOWS YER NAME, CAPTAIN.', 88, 1, '#fce4a8');
       say(`SAILORS ${player.kills}   BOSSES ${player.bosses || 0}   SCORE ${score()}`, 108);
       say(`CAPTAIN'S SHARE  +${v.bonus} GOLD`, 122, 1, '#fcc838');
@@ -663,7 +678,7 @@
         level.ensure(col + 40);
         player.x = col * JR.TILE; player.y = 4 * JR.TILE; player.vy = 0;
         camX = prevCam = player.x - 150;
-        world.enemies.length = world.shots.length = world.pickups.length = world.hazards.length = 0;
+        world.enemies.length = world.shots.length = world.pickups.length = world.hazards.length = world.ropes.length = 0; player.rope = null;
         arena = null; boss = null;
         while (nextSpawn < level.spawns.length && level.spawns[nextSpawn].x < camX) nextSpawn++;
       },

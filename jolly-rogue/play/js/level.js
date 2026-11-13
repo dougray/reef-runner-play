@@ -5,7 +5,7 @@
 (() => {
   const JR = window.JR;
   const W = 30, H = 17;
-  const SPAWNS = 'odmrcsbfn$vgkeyz';
+  const SPAWNS = 'odmrcsbfn$vgkeyzjqiuhlatx';   // see js/chunks.js's legend
 
   JR.makeLevel = (seed, startLevel = 0) => {
     const first = JR.clampLevel ? JR.clampLevel(startLevel) : 0;   // the segment the run starts in
@@ -27,6 +27,8 @@
       platform(c, r) { return lv.tile(c, r) === '='; },
       spikes(c, r) { return lv.tile(c, r) === '^'; },
       lava(c, r) { return lv.tile(c, r) === '~'; },
+      // Up in the rigging: yards and crow's nests count as safe footing to be put back on after a fall.
+      perch: c => { const l = JR.levelOf && JR.levelOf(lv.biomeAt(Math.max(0, c))); return !!(l && l.perch); },
       ensure(upto) { while (cols.length < upto) append(next()); },
       biomeAt: col => (lv.ensure(col + 1), info(Math.max(0, col)).biome),
       nationAt: col => (lv.ensure(col + 1), info(Math.max(0, col)).nation),
@@ -61,7 +63,7 @@
         for (let r = 0; r < H; r++) {
           const t = ch.rows[r][c];
           if (SPAWNS.includes(t)) {
-            lv.spawns.push({ type: t, x: (base + c) * JR.TILE, y: r * JR.TILE, nation: meta.nation });
+            lv.spawns.push({ type: t, x: (base + c) * JR.TILE, y: r * JR.TILE, nation: meta.nation, biome: meta.biome });
             col.push('.');
           } else col.push(t);
         }

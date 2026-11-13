@@ -6,7 +6,7 @@
   // Everything that lives in a run besides the level and the player.
   // events: sound/effect cues for the game to play this frame ('shot', 'kill', ...).
   JR.makeWorld = seed => ({
-    rand: JR.rng(seed ^ 0x5eed), shots: [], enemies: [], pickups: [], fx: [], events: [], corpses: [], hazards: [],
+    rand: JR.rng(seed ^ 0x5eed), shots: [], enemies: [], pickups: [], fx: [], events: [], corpses: [], hazards: [], ropes: [],
   });
 
   const emit = (w, name, x, y) => w.events.push({ name, x, y });
@@ -123,6 +123,13 @@
     p.cool = Math.max(0, p.cool - dt);
     p.slash = Math.max(0, p.slash - dt);
     p.drop = Math.max(0, p.drop - dt);
+    p.regrab = Math.max(0, (p.regrab || 0) - dt);
+    // On a rope or vine (js/ropes.js): swing, climb, shoot; Jump lets go.
+    if (p.rope && JR.swingPlayer(p, input, lv, w, dt)) {
+      p.aim = JR.aimDir(input, p.facing, false);
+      shoot(p, input, w);
+      return;
+    }
     const feet = p.y + p.h;
 
     // Crouch: only on the ground, Down with no left/right. Feet stay planted.
@@ -138,7 +145,11 @@
     if (dir) p.facing = dir;
     const target = p.crouch ? 0 : dir * p.speed;
     const rate = (target === 0 ? JR.RUN_DECEL : JR.RUN_ACCEL) * (p.onGround ? 1 : 0.75) * dt;
-    p.vx = Math.abs(target - p.vx) <= rate ? target : p.vx + Math.sign(target - p.vx) * rate;
+    // Flung off a rope: the swing's speed carries until you land, unless you steer against it.
+    p.fling = p.onGround ? 0 : Math.max(0, (p.fling || 0) - dt);
+    const carried = p.fling > 0 && Math.abs(p.vx) > Math.abs(target) && (dir === 0 || dir === Math.sign(p.vx));
+    if (carried) p.vx -= Math.sign(p.vx) * Math.min(Math.abs(p.vx) - Math.abs(target), 40 * dt);
+    else p.vx = Math.abs(target - p.vx) <= rate ? target : p.vx + Math.sign(target - p.vx) * rate;
     p.runT = dir && p.onGround ? p.runT + dt : 0;
 
     // Jump: buffered presses, coyote time after leaving a ledge, and a short hop if released early.
@@ -175,6 +186,7 @@
     p.vy = Math.min(p.vy + g * dt, JR.MAX_FALL);
     JR.moveBody(lv, p, dt);              // p.drop (a timer) is truthy while dropping through
     if (wasAir && p.onGround) { p.land = 0.1; emit(w, 'land', p.x + p.w / 2, p.y + p.h); }
+    if (w.ropes && w.ropes.length && JR.tryGrabRope && JR.tryGrabRope(p, w.ropes, w)) { p.aim = JR.aimDir(input, p.facing, false); return; }
     p.land = Math.max(0, (p.land || 0) - dt);
 
     p.aim = JR.aimDir(input, p.facing, p.onGround);
@@ -183,7 +195,9 @@
     if (p.onGround) {
       const r = Math.floor((p.y + p.h + 1) / T());
       const l = Math.floor(p.x / T()), rt = Math.floor((p.x + p.w - 1) / T());
-      if (lv.solid(l, r) && lv.solid(rt, r) && !(lv.spikes && (lv.spikes(l, r - 1) || lv.spikes(rt, r - 1)))) {
+      // Up in the rigging (levels with `perch`), a yard or a crow's nest counts too: a fall puts you back on it.
+      const firm = (c, rr) => lv.solid(c, rr) || (lv.perch && lv.perch(c) && lv.platform(c, rr));
+      if (firm(l, r) && firm(rt, r) && !(lv.spikes && (lv.spikes(l, r - 1) || lv.spikes(rt, r - 1)))) {
         p.safeX = p.x; p.safeY = p.y;
       }
     }
@@ -198,7 +212,11 @@
 
     if (lv.spikes) JR.tileHazards(p, lv, w);
 
-    // Fire is held for auto-fire. Close enemies get the blade instead of a bullet.
+    shoot(p, input, w);
+  };
+
+  // Fire is held for auto-fire. Close enemies get the blade instead of a bullet.
+  function shoot(p, input, w) {
     if (input.fire && p.cool <= 0) {
       const melee = JR.WEAPONS[p.melee];
       if (JR.inMeleeRange(p, w.enemies, melee)) {
@@ -226,7 +244,7 @@
         emit(w, 'shot', m.x, m.y);
       }
     }
-  };
+  }
 
   // The downward stab: the blade's damage plus one, a bounce, and the double jump back.
   function stab(e, p, w) {
@@ -258,7 +276,7 @@
       emit(w, 'kill', e.x, e.y);
       // Knocked flat: flies back away from the pirate, lands, blinks out (JR.updateCorpses).
       if (e.boss) JR.bossDown(e, p, w);
-      if (e.type !== 'n') w.corpses.push({
+      if (e.type !== 'n' && e.type !== 'u') w.corpses.push({
         type: e.type, look: JR.LOOKS[e.type] || 'sailor', nation: e.nation, facing: e.facing,
         x: e.x, y: e.y, w: e.boss ? e.w : 12, h: e.boss ? e.h : 24,
         vx: -e.facing * (e.boss ? 50 : 80), vy: e.boss ? -220 : -170, age: 0, onGround: false, boss: !!e.boss,
